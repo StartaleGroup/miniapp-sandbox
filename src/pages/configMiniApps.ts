@@ -18,6 +18,16 @@ export const MINI_APPS: MiniAppConfig[] = [
 		category: 'NFT',
 		tags: ['minting', 'collectibles', 'demo'],
 	},
+	// Add your Mini App here:
+	// {
+	// 	id: 'your-app-id',
+	// 	name: 'Your App Name',
+	// 	description: 'Description of your app',
+	// 	url: 'https://your-miniapp.example.com/',
+	// 	imageUrl: 'https://your-miniapp.example.com/preview.png',
+	// 	category: 'DeFi', // Optional: e.g., 'DeFi', 'NFT', 'Gaming', 'Social'
+	// 	tags: ['tag1', 'tag2'], // Optional: e.g., ['swap', 'trading']
+	// },
 ]
 
 /** Origins allowed for manifest fetch (API proxy). Derived from MINI_APPS urls. */
