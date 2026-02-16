@@ -61,12 +61,12 @@ export const Header = () => {
 						</div>
 						{/* Disconnect button */}
 						<button
-							className="flex cursor-pointer items-center gap-1 rounded-full bg-zinc-100 px-3 py-2 transition-colors hover:bg-zinc-200"
+							className="flex cursor-pointer items-center gap-1 rounded-full bg-violet-600 px-3 py-2 transition-colors hover:bg-violet-700"
 							onClick={() => disconnect()}
 							type="button"
 						>
-							<LogOut className="size-4 text-zinc-900" />
-							<span className="font-medium text-sm text-zinc-900">
+							<LogOut className="size-4 text-white" />
+							<span className="font-medium text-sm text-white">
 								Disconnect
 							</span>
 						</button>

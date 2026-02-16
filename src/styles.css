@@ -71,20 +71,15 @@
 		@apply h-full min-h-fit bg-background;
 	}
 
-	/* Hide the "Installed" section in RainbowKit modal */
-	/* This hides browser-detected wallets like MetaMask */
-	div[data-rk] div[style*="flex-direction: column"]:has(> button[data-testid*="rk-wallet-option"]):first-of-type {
-		display: none !important;
+	/* Custom RainbowKit styling */
+	/* Hide "Installed" wallets section to show only our configured Startale wallet */
+	div[data-rk] > div > div:first-child > div:first-child {
+		display: none;
 	}
 
-	/* Alternative selector - hide by checking for common installed wallet names */
-	div[data-rk] button[data-testid="rk-wallet-option-metaMask"],
-	div[data-rk] button[data-testid="rk-wallet-option-metamask"] {
-		display: none !important;
-	}
-
-	/* Hide "What is a Wallet?" learn more section */
-	div[data-rk] a[href*="learn.rainbow.me"] {
-		display: none !important;
+	/* Alternatively, target by section content */
+	div[data-rk] button[aria-label*="MetaMask"],
+	div[data-rk] button[data-testid*="metamask"] {
+		display: none;
 	}
 }
