@@ -13,8 +13,8 @@ export const Sidebar = () => {
 				{/* Header */}
 				<div className="px-6 pb-6">
 					<NavLink className="flex items-center gap-3" to="/">
-						<img alt="MiniApps Sandbox logo" className="h-10" src={appLogo} />
-						<span className="font-semibold text-lg text-zinc-950">
+						<img alt="MiniApps Sandbox logo" className="h-10 w-10" src={appLogo} />
+						<span className="whitespace-nowrap font-semibold text-lg text-violet-600">
 							MiniApps Sandbox
 						</span>
 					</NavLink>

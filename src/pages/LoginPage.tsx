@@ -13,8 +13,8 @@ export const LoginPage = () => {
 	return (
 		<div className="flex flex-1 items-center justify-center p-8">
 			<div className="flex flex-col items-center gap-8">
-				<div className="flex flex-col items-center gap-3">
-					<img alt="MiniApps Sandbox" className="h-16" src={appLogo} />
+				<div className="flex flex-col items-center gap-4">
+					<img alt="MiniApps Sandbox" className="h-20 w-20" src={appLogo} />
 					<h2 className="text-violet-600">MiniApps Sandbox</h2>
 				</div>
 				<p className="text-center">Connect your wallet to get started</p>

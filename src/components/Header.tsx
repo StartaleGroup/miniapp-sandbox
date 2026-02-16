@@ -1,16 +1,26 @@
-import { LogOut } from "lucide-react";
+import { Copy, LogOut } from "lucide-react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAccount, useDisconnect } from "wagmi";
 import appLogo from "~/icons/app-logo-purple.svg";
 
 export const Header = () => {
-	const { isConnected } = useAccount();
+	const { isConnected, address } = useAccount();
 	const { disconnect } = useDisconnect();
 	const { pathname } = useLocation();
+	const [copied, setCopied] = useState(false);
 
 	const title: Record<string, string> = {
 		"/": "Home",
 		"/miniapps": "MiniApps",
+	};
+
+	const handleCopyAddress = async () => {
+		if (address) {
+			await navigator.clipboard.writeText(address);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		}
 	};
 
 	return (
@@ -33,17 +43,34 @@ export const Header = () => {
 
 			{/* Right Section */}
 			<div className="flex flex-1 items-center justify-end gap-2">
-				{isConnected && (
-					<button
-						className="flex cursor-pointer items-center gap-1 rounded-full bg-zinc-100 px-3 py-2 transition-colors hover:bg-zinc-200"
-						onClick={() => disconnect()}
-						type="button"
-					>
-						<LogOut className="size-4 text-zinc-900" />
-						<span className="font-medium text-sm text-zinc-900">
-							Disconnect
-						</span>
-					</button>
+				{isConnected && address && (
+					<>
+						{/* Address with copy button */}
+						<div className="flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-2">
+							<span className="font-mono text-sm text-zinc-900">
+								{address}
+							</span>
+							<button
+								className="flex cursor-pointer items-center"
+								onClick={handleCopyAddress}
+								title={copied ? "Copied!" : "Copy address"}
+								type="button"
+							>
+								<Copy className="size-4 text-zinc-600 hover:text-zinc-900" />
+							</button>
+						</div>
+						{/* Disconnect button */}
+						<button
+							className="flex cursor-pointer items-center gap-1 rounded-full bg-zinc-100 px-3 py-2 transition-colors hover:bg-zinc-200"
+							onClick={() => disconnect()}
+							type="button"
+						>
+							<LogOut className="size-4 text-zinc-900" />
+							<span className="font-medium text-sm text-zinc-900">
+								Disconnect
+							</span>
+						</button>
+					</>
 				)}
 			</div>
 		</div>
