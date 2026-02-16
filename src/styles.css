@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* Inter Variable Font */
+@font-face {
+	font-family: "Inter";
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url("/fonts/inter-var-latin.woff2") format("woff2");
+}
+
+:root {
+	--background: oklch(1 0 0);
+	--background-2: oklch(0.97 0 0);
+	--foreground: black;
+	--default-font-family: "Inter", sans-serif;
+	--font-weight-light: 400;
+	--color-background: var(--background);
+}
+
+@theme {
+	--color-background: var(--background);
+	--color-background-2: var(--background-2);
+	--color-foreground: var(--foreground);
+	--color-primary: var(--foreground);
+	--color-primary-foreground: var(--background);
+	--color-surface-warm: #f8f5ef;
+	--color-accent-gold: #b6912d;
+	--color-accent-gold-muted: #c1ab7c;
+	--color-link: #2563eb;
+	--text-sm: 14px;
+	--text-xs: 13px;
+}
+
+@layer base {
+	* {
+		@apply border-gray-300;
+	}
+
+	h1 {
+		color: black;
+		@apply font-semibold text-[2rem] leading-normal tracking-tight;
+	}
+
+	h2 {
+		color: black;
+		@apply font-semibold text-[1.5rem] leading-normal tracking-[-0.14px];
+	}
+
+	h3 {
+		color: black;
+		@apply font-semibold leading-normal;
+	}
+
+	p {
+		color: theme(--color-gray-500);
+		@apply font-light text-sm leading-normal tracking-[-0.14px];
+	}
+
+	a {
+		color: theme(--color-blue-600);
+		@apply no-underline;
+	}
+
+	html {
+		color-scheme: light;
+		@apply h-full min-h-fit;
+	}
+
+	body {
+		@apply h-full min-h-fit bg-background;
+	}
+
+	/* Hide the "Installed" section in RainbowKit modal */
+	/* This hides browser-detected wallets like MetaMask */
+	div[data-rk] div[style*="flex-direction: column"]:has(> button[data-testid*="rk-wallet-option"]):first-of-type {
+		display: none !important;
+	}
+
+	/* Alternative selector - hide by checking for common installed wallet names */
+	div[data-rk] button[data-testid="rk-wallet-option-metaMask"],
+	div[data-rk] button[data-testid="rk-wallet-option-metamask"] {
+		display: none !important;
+	}
+
+	/* Hide "What is a Wallet?" learn more section */
+	div[data-rk] a[href*="learn.rainbow.me"] {
+		display: none !important;
+	}
+}
