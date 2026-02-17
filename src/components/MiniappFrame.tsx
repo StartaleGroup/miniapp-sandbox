@@ -429,34 +429,36 @@ export function MiniappFrame({
 	}
 
 	return (
-		<div className="fixed inset-0 z-50 flex flex-col items-center bg-black/50">
-			{/* Header bar */}
-			<div className="flex w-full max-w-[424px] items-center justify-between rounded-t-2xl border-b border-zinc-200 bg-white px-4 py-3 mt-4">
-				<div className="min-w-0 flex-1">
-					<p className="truncate font-semibold text-sm text-zinc-950">
-						{title ?? targetUrl.host}
-					</p>
+		<div className="flex w-full items-start justify-center px-4 py-6">
+			<div className="flex w-full max-w-[424px] flex-col rounded-2xl border border-zinc-200 bg-white" style={{ height: '695px' }}>
+				{/* Header bar */}
+				<div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3">
+					<div className="min-w-0 flex-1">
+						<p className="truncate font-semibold text-sm text-zinc-950">
+							{title ?? targetUrl.host}
+						</p>
+					</div>
+					<button
+						aria-label="Close"
+						className="ml-3 inline-flex size-8 items-center justify-center rounded-full hover:bg-zinc-100"
+						onClick={onClose}
+						type="button"
+					>
+						<X className="size-5" />
+					</button>
 				</div>
-				<button
-					aria-label="Close"
-					className="ml-3 inline-flex size-8 items-center justify-center rounded-full hover:bg-zinc-100"
-					onClick={onClose}
-					type="button"
-				>
-					<X className="size-5" />
-				</button>
-			</div>
 
-			{/* Iframe container - mobile size */}
-			<div className="w-full max-w-[424px] flex-1 overflow-hidden rounded-b-2xl bg-white mb-4" style={{ maxHeight: '695px' }}>
-				<iframe
-					allow="clipboard-read; clipboard-write"
-					className="h-full w-full"
-					ref={iframeRef}
-					sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-					src={src}
-					title={title ?? 'Mini App'}
-				/>
+				{/* Iframe container */}
+				<div className="flex-1 overflow-hidden bg-white">
+					<iframe
+						allow="clipboard-read; clipboard-write"
+						className="h-full w-full"
+						ref={iframeRef}
+						sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+						src={src}
+						title={title ?? 'Mini App'}
+					/>
+				</div>
 			</div>
 
 			{/* Approval dialog */}

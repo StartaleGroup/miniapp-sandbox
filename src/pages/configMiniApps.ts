@@ -14,6 +14,7 @@ export const MINI_APPS: MiniAppConfig[] = [
 		name: 'Inking',
 		description: 'Demo minting App',
 		url: 'https://inking-farcaster-miniapp.vercel.app/',
+		// url: 'http://localhost:5173/',
 		imageUrl: 'https://inking-farcaster-miniapp.vercel.app/preview.png',
 		category: 'NFT',
 		tags: ['minting', 'collectibles', 'demo'],
