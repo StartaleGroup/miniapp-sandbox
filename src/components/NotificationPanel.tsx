@@ -1,9 +1,12 @@
 import { Bell } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useNotifications } from '~/providers/NotificationProvider'
+import { useAccount } from 'wagmi'
+import { cn } from '~/lib/utils'
 
 export function NotificationBell() {
 	const { notifications, unreadCount, markAllRead } = useNotifications()
+	const { isConnected } = useAccount()
 	const [open, setOpen] = useState(false)
 	const panelRef = useRef<HTMLDivElement>(null)
 
@@ -31,14 +34,20 @@ export function NotificationBell() {
 	return (
 		<div className="relative" ref={panelRef}>
 			<button
-				className="relative flex items-center rounded-full px-4 py-2.5 font-medium text-base text-zinc-950 hover:bg-zinc-100"
+				className={cn(
+					"relative flex items-center rounded-full px-4 py-2.5 font-medium text-base",
+					!isConnected
+						? "pointer-events-none text-zinc-400"
+						: "text-zinc-950 hover:bg-zinc-100"
+				)}
 				onClick={toggle}
 				type="button"
+				disabled={!isConnected}
 			>
 				<Bell className="mr-2 size-5" />
 				Notifications
-				{unreadCount > 0 && (
-					<span className="absolute top-1 right-2 flex size-5 items-center justify-center rounded-full bg-red-500 font-medium text-[10px] text-white">
+				{unreadCount > 0 && isConnected && (
+					<span className="absolute top-1.5 left-full -ml-3 flex size-5 items-center justify-center rounded-full bg-red-500 font-medium text-[10px] text-white">
 						{unreadCount > 99 ? '99+' : unreadCount}
 					</span>
 				)}

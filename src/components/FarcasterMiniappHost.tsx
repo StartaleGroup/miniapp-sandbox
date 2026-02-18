@@ -279,29 +279,41 @@ export function FarcasterMiniappHost({
 		targetOrigin: string,
 		postFrameEvent: (event: unknown) => void,
 		providerInfo: ReturnType<typeof createProviderInfo>,
-	) => ({
-		// Miniapp lifecycle actions
-		addMiniApp: async () => {
-			const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
-			const details = { url: notificationUrl, token: crypto.randomUUID() }
+	) => {
+		// Shared implementation for addMiniApp/addFrame
+		const addMiniAppImpl = async () => {
+			try {
+				const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
+				const details = { url: notificationUrl, token: crypto.randomUUID() }
 
-			postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
-			if (webhookUrl) {
-				fetch(webhookUrl, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-				}).catch(() => {})
+				if (webhookUrl) {
+					fetch(webhookUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+					}).catch((err) => {
+						console.error('[HOST] Webhook fetch error:', err);
+					})
+				}
+
+				return { result: { notificationDetails: details } }
+			} catch (error) {
+				console.error('[HOST] addMiniApp error:', error);
+				throw error;
 			}
+		};
 
-			return { result: { notificationDetails: details } }
-		},
+		return {
+			// Miniapp lifecycle actions
+			addMiniApp: addMiniAppImpl,
+			addFrame: addMiniAppImpl, // Backwards compatibility - SDK still calls this
 
-		// Navigation actions
-		ready: () => {},
-		close: () => onClose?.(),
-		openUrl: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
+			// Navigation actions
+			ready: () => {},
+			close: () => onClose?.(),
+			openUrl: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
 
 		// Signing actions (not supported in sandbox)
 		signIn: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
@@ -341,7 +353,8 @@ export function FarcasterMiniappHost({
 				info: providerInfo,
 			})
 		},
-	})
+		};
+	};
 
 	useEffect(() => {
 		const iframeWindow = iframeRef.current?.contentWindow
