@@ -1,3 +1,10 @@
+/**
+ * FarcasterMiniappHost - Farcaster MiniApp Client/Host Implementation
+ *
+ * Implements the Farcaster client/host side of the MiniApp protocol.
+ * Hosts miniapps in an iframe and provides the Farcaster SDK host API
+ * including wallet access, notifications, and frame interactions.
+ */
 import { expose } from 'comlink'
 import { X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,7 +32,7 @@ type PendingApproval = {
 	reject: (e: Error) => void
 } | null
 
-export function MiniappFrame({
+export function FarcasterMiniappHost({
 	src,
 	title,
 	onClose,
@@ -201,6 +208,10 @@ export function MiniappFrame({
 		},
 		[address, walletClient, chain, publicClient, waitForApproval],
 	)
+
+	// ============================================================================
+	// Helper Functions: Extract complex logic for better readability
+	// ============================================================================
 
 	// Helper: Create EIP-6963 provider info
 	const createProviderInfo = () => ({

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MiniappFrame } from '~/components/MiniappFrame'
+import { FarcasterMiniappHost } from '~/components/FarcasterMiniappHost'
 import { MINI_APPS, type MiniAppConfig } from './configMiniApps'
 
 interface FarcasterManifestMiniapp {
@@ -125,7 +125,7 @@ export const MiniAppsPage = () => {
 					</div>
 				</div>
 			) : (
-				<MiniappFrame
+				<FarcasterMiniappHost
 					src={activeMiniApp.url}
 					title={activeMiniApp.name}
 					onClose={() => setActiveMiniApp(null)}

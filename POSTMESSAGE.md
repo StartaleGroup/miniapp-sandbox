@@ -55,7 +55,7 @@ const accounts = await sdk.wallet.ethProviderRequest({
 
 ### Parent Side (Sandbox)
 
-**File:** `src/components/MiniappFrame.tsx`
+**File:** `src/components/FarcasterMiniappHost.tsx`
 
 ```typescript
 import { expose } from 'comlink'
