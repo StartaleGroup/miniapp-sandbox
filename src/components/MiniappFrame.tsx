@@ -331,20 +331,44 @@ export function MiniappFrame({
 				})
 			},
 
-			addFrame: () => {
+			addFrame: async () => {
 				const details = {
-					url: `${window.location.origin}/api/miniapps-notifications`,
+					url: 'http://localhost:3200/api/miniapps-notifications',
 					token: crypto.randomUUID(),
 				}
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
+				try {
+					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+					const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+					if (webhookUrl) {
+						fetch(webhookUrl, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+						}).catch(() => {})
+					}
+				} catch { /* manifest fetch failed — meymar may not be running */ }
 				return { result: { notificationDetails: details } }
 			},
-			addMiniApp: () => {
+			addMiniApp: async () => {
 				const details = {
-					url: `${window.location.origin}/api/miniapps-notifications`,
+					url: 'http://localhost:3200/api/miniapps-notifications',
 					token: crypto.randomUUID(),
 				}
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
+				try {
+					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+					const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+					if (webhookUrl) {
+						fetch(webhookUrl, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+						}).catch(() => {})
+					}
+				} catch { /* manifest fetch failed — meymar may not be running */ }
 				return { result: { notificationDetails: details } }
 			},
 

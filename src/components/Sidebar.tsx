@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import appLogo from "~/icons/app-logo-purple.svg";
 import { cn } from "~/lib/utils";
 import { useAccount } from "wagmi";
+import { NotificationBell } from "./NotificationPanel";
 
 export const Sidebar = () => {
 	const { isConnected } = useAccount();
@@ -39,6 +40,7 @@ export const Sidebar = () => {
 							<Blocks className="mr-2 size-5" />
 							MiniApps
 						</NavLink>
+						<NotificationBell />
 					</div>
 				</div>
 
