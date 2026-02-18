@@ -332,43 +332,65 @@ export function MiniappFrame({
 			},
 
 			addFrame: async () => {
+				// Derive notification URL from webhookUrl in manifest
+				let notificationUrl = 'http://localhost:3200/api/miniapps-notifications' // fallback
+				let webhookUrl: string | undefined
+
+				try {
+					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+					webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+					if (webhookUrl) {
+						const url = new URL(webhookUrl)
+						notificationUrl = `${url.origin}/api/miniapps-notifications`
+					}
+				} catch { /* manifest fetch failed — meymar may not be running */ }
+
 				const details = {
-					url: 'http://localhost:3200/api/miniapps-notifications',
+					url: notificationUrl,
 					token: crypto.randomUUID(),
 				}
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+
 				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
-				try {
-					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-					const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
-					if (webhookUrl) {
-						fetch(webhookUrl, {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-						}).catch(() => {})
-					}
-				} catch { /* manifest fetch failed — meymar may not be running */ }
+				if (webhookUrl) {
+					fetch(webhookUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+					}).catch(() => {})
+				}
+
 				return { result: { notificationDetails: details } }
 			},
 			addMiniApp: async () => {
+				// Derive notification URL from webhookUrl in manifest
+				let notificationUrl = 'http://localhost:3200/api/miniapps-notifications' // fallback
+				let webhookUrl: string | undefined
+
+				try {
+					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+					webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+					if (webhookUrl) {
+						const url = new URL(webhookUrl)
+						notificationUrl = `${url.origin}/api/miniapps-notifications`
+					}
+				} catch { /* manifest fetch failed — meymar may not be running */ }
+
 				const details = {
-					url: 'http://localhost:3200/api/miniapps-notifications',
+					url: notificationUrl,
 					token: crypto.randomUUID(),
 				}
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+
 				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
-				try {
-					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-					const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
-					if (webhookUrl) {
-						fetch(webhookUrl, {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-						}).catch(() => {})
-					}
-				} catch { /* manifest fetch failed — meymar may not be running */ }
+				if (webhookUrl) {
+					fetch(webhookUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+					}).catch(() => {})
+				}
+
 				return { result: { notificationDetails: details } }
 			},
 
