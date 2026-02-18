@@ -12,8 +12,8 @@ import { createPublicClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
-import { safeParseUrl } from '~/lib/miniapps/miniapp-utils'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
+
 
 class ProviderRpcError extends Error {
 	code: number
@@ -31,6 +31,14 @@ type PendingApproval = {
 	resolve: () => void
 	reject: (e: Error) => void
 } | null
+
+function safeParseUrl(raw: string): URL | null {
+	try {
+		return new URL(raw)
+	} catch {
+		return null
+	}
+}
 
 export function FarcasterMiniappHost({
 	src,
@@ -223,7 +231,6 @@ export function FarcasterMiniappHost({
 
 	// Helper: Derive notification URL from manifest's webhookUrl
 	const deriveNotificationUrl = async (targetOrigin: string) => {
-		const fallbackUrl = 'http://localhost:3200/api/miniapps-notifications'
 		try {
 			const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
 			const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
@@ -235,7 +242,7 @@ export function FarcasterMiniappHost({
 				}
 			}
 		} catch { /* manifest fetch failed */ }
-		return { notificationUrl: fallbackUrl, webhookUrl: undefined }
+		return { notificationUrl: undefined, webhookUrl: undefined }
 	}
 
 	// Helper: Create message posting utilities
@@ -272,6 +279,7 @@ export function FarcasterMiniappHost({
 			haptics: false,
 			cameraAndMicrophoneAccess: Boolean(navigator.mediaDevices?.getUserMedia),
 		},
+		starPoints: 100,
 	})
 
 	// Helper: Create host action handlers
