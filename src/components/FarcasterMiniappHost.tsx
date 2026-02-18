@@ -253,15 +253,20 @@ export function FarcasterMiniappHost({
 
 	// Helper: Create host context object
 	const createHostContext = () => ({
+		user: {
+			fid: 3,
+			username: undefined,
+			displayName: undefined,
+			pfpUrl: undefined,
+		},
+		location: {
+			type: 'launcher' as const,
+		},
 		client: {
 			platformType: 'web' as const,
-			clientFid: 0,
+			clientFid: 1,
 			added: false,
 			safeAreaInsets: { top: 0, bottom: 0, left: 0, right: 0 },
-		},
-		user: {
-			fid: 0,
-			username: undefined,
 		},
 		features: {
 			haptics: false,
@@ -276,23 +281,6 @@ export function FarcasterMiniappHost({
 		providerInfo: ReturnType<typeof createProviderInfo>,
 	) => ({
 		// Miniapp lifecycle actions
-		addFrame: async () => {
-			const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
-			const details = { url: notificationUrl, token: crypto.randomUUID() }
-
-			postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
-
-			if (webhookUrl) {
-				fetch(webhookUrl, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-				}).catch(() => {})
-			}
-
-			return { result: { notificationDetails: details } }
-		},
-
 		addMiniApp: async () => {
 			const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
 			const details = { url: notificationUrl, token: crypto.randomUUID() }
@@ -314,8 +302,6 @@ export function FarcasterMiniappHost({
 		ready: () => {},
 		close: () => onClose?.(),
 		openUrl: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
-		setPrimaryButton: () => {},
-		updateBackState: () => {},
 
 		// Signing actions (not supported in sandbox)
 		signIn: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
@@ -384,8 +370,6 @@ export function FarcasterMiniappHost({
 					'actions.ready',
 					'actions.openUrl',
 					'actions.close',
-					'actions.setPrimaryButton',
-					'back',
 				]),
 			getChains: () => Promise.resolve([`eip155:${chain.id}`]),
 
