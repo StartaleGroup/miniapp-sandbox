@@ -202,6 +202,150 @@ export function MiniappFrame({
 		[address, walletClient, chain, publicClient, waitForApproval],
 	)
 
+	// Helper: Create EIP-6963 provider info
+	const createProviderInfo = () => ({
+		icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSI0IiBmaWxsPSIjMTgxODFBIi8+PHBhdGggZD0iTTUgOEg5IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA1SDExIiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA5LjVIMTEiIHN0cm9rZT0iI0ZGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
+		name: 'Startale',
+		rdns: 'com.startale',
+		uuid: crypto.randomUUID(),
+	} as const)
+
+	// Helper: Derive notification URL from manifest's webhookUrl
+	const deriveNotificationUrl = async (targetOrigin: string) => {
+		const fallbackUrl = 'http://localhost:3200/api/miniapps-notifications'
+		try {
+			const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+			const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+			if (webhookUrl) {
+				const url = new URL(webhookUrl)
+				return {
+					notificationUrl: `${url.origin}/api/miniapps-notifications`,
+					webhookUrl,
+				}
+			}
+		} catch { /* manifest fetch failed */ }
+		return { notificationUrl: fallbackUrl, webhookUrl: undefined }
+	}
+
+	// Helper: Create message posting utilities
+	const createMessagePoster = (iframeWindow: Window, targetOrigin: string) => ({
+		postFrameEvent: (event: unknown) => {
+			iframeWindow.postMessage({ type: 'frameEvent', event }, targetOrigin)
+		},
+		postEthProviderEvent: (event: string, params: unknown[]) => {
+			iframeWindow.postMessage(
+				{ type: 'frameEthProviderEvent', event, params },
+				targetOrigin,
+			)
+		},
+	})
+
+	// Helper: Create host context object
+	const createHostContext = () => ({
+		client: {
+			platformType: 'web' as const,
+			clientFid: 0,
+			added: false,
+			safeAreaInsets: { top: 0, bottom: 0, left: 0, right: 0 },
+		},
+		user: {
+			fid: 0,
+			username: undefined,
+		},
+		features: {
+			haptics: false,
+			cameraAndMicrophoneAccess: Boolean(navigator.mediaDevices?.getUserMedia),
+		},
+	})
+
+	// Helper: Create host action handlers
+	const createHostActions = (
+		targetOrigin: string,
+		postFrameEvent: (event: unknown) => void,
+		providerInfo: ReturnType<typeof createProviderInfo>,
+	) => ({
+		// Miniapp lifecycle actions
+		addFrame: async () => {
+			const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
+			const details = { url: notificationUrl, token: crypto.randomUUID() }
+
+			postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+
+			if (webhookUrl) {
+				fetch(webhookUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+				}).catch(() => {})
+			}
+
+			return { result: { notificationDetails: details } }
+		},
+
+		addMiniApp: async () => {
+			const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
+			const details = { url: notificationUrl, token: crypto.randomUUID() }
+
+			postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
+
+			if (webhookUrl) {
+				fetch(webhookUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+				}).catch(() => {})
+			}
+
+			return { result: { notificationDetails: details } }
+		},
+
+		// Navigation actions
+		ready: () => {},
+		close: () => onClose?.(),
+		openUrl: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
+		setPrimaryButton: () => {},
+		updateBackState: () => {},
+
+		// Signing actions (not supported in sandbox)
+		signIn: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
+		signManifest: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
+
+		// Social actions (no-ops in sandbox)
+		viewCast: () => {},
+		viewProfile: () => {},
+		openMiniApp: () => {},
+		composeCast: () => ({ cast: null }),
+		viewToken: () => {},
+
+		// Token actions (not supported)
+		sendToken: () => Promise.resolve({
+			success: false,
+			reason: 'send_failed',
+			error: { error: 'not_supported', message: 'Not supported in sandbox' },
+		}),
+		swapToken: () => Promise.resolve({
+			success: false,
+			reason: 'swap_failed',
+			error: { error: 'not_supported', message: 'Not supported in sandbox' },
+		}),
+
+		// Permissions
+		requestCameraAndMicrophoneAccess: () => Promise.resolve(),
+
+		// Haptics (no-ops)
+		impactOccurred: () => undefined,
+		notificationOccurred: () => undefined,
+		selectionChanged: () => undefined,
+
+		// EIP-6963
+		eip6963RequestProvider: () => {
+			postFrameEvent({
+				event: 'eip6963:announceProvider',
+				info: providerInfo,
+			})
+		},
+	})
+
 	useEffect(() => {
 		const iframeWindow = iframeRef.current?.contentWindow
 		if (!iframeWindow) return
@@ -213,42 +357,14 @@ export function MiniappFrame({
 			targetOrigin,
 		})
 
-		const providerInfo = {
-			icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSI0IiBmaWxsPSIjMTgxODFBIi8+PHBhdGggZD0iTTUgOEg5IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA1SDExIiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA5LjVIMTEiIHN0cm9rZT0iI0ZGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
-			name: 'Startale',
-			rdns: 'com.startale',
-			uuid: crypto.randomUUID(),
-		} as const
+		// Create utilities and data
+		const providerInfo = createProviderInfo()
+		const { postFrameEvent, postEthProviderEvent } = createMessagePoster(iframeWindow, targetOrigin)
+		const hostActions = createHostActions(targetOrigin, postFrameEvent, providerInfo)
 
-		const postFrameEvent = (event: unknown) => {
-			iframeWindow.postMessage({ type: 'frameEvent', event }, targetOrigin)
-		}
-		const postEthProviderEvent = (event: string, params: unknown[]) => {
-			iframeWindow.postMessage(
-				{ type: 'frameEthProviderEvent', event, params },
-				targetOrigin,
-			)
-		}
-
+		// Build complete host object with context, capabilities, and actions
 		const host: Record<string, unknown> = {
-			context: {
-				client: {
-					platformType: 'web',
-					clientFid: 0,
-					added: false,
-					safeAreaInsets: { top: 0, bottom: 0, left: 0, right: 0 },
-				},
-				user: {
-					fid: 0,
-					username: undefined,
-				},
-				features: {
-					haptics: false,
-					cameraAndMicrophoneAccess: Boolean(
-						navigator.mediaDevices?.getUserMedia,
-					),
-				},
-			},
+			context: createHostContext(),
 
 			getCapabilities: () =>
 				Promise.resolve([
@@ -262,27 +378,7 @@ export function MiniappFrame({
 				]),
 			getChains: () => Promise.resolve([`eip155:${chain.id}`]),
 
-			ready: () => {
-				// no-op for web host
-			},
-			close: () => {
-				onClose?.()
-			},
-			openUrl: (url: string) => {
-				window.open(url, '_blank', 'noopener,noreferrer')
-			},
-			setPrimaryButton: () => {
-				// no-op in sandbox
-			},
-			updateBackState: () => {
-				// no-op in sandbox
-			},
-
-			signIn: () =>
-				Promise.resolve({ error: { type: 'rejected_by_user' } }),
-			signManifest: () =>
-				Promise.resolve({ error: { type: 'rejected_by_user' } }),
-
+			// Ethereum provider methods
 			ethProviderRequest: async (request: unknown) => {
 				const record = request as Record<string, unknown> | null
 				const method = (record?.method as string | undefined) ?? undefined
@@ -324,97 +420,9 @@ export function MiniappFrame({
 					}
 				}
 			},
-			eip6963RequestProvider: () => {
-				postFrameEvent({
-					event: 'eip6963:announceProvider',
-					info: providerInfo,
-				})
-			},
 
-			addFrame: async () => {
-				// Derive notification URL from webhookUrl in manifest
-				let notificationUrl = 'http://localhost:3200/api/miniapps-notifications' // fallback
-				let webhookUrl: string | undefined
-
-				try {
-					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-					webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
-					if (webhookUrl) {
-						const url = new URL(webhookUrl)
-						notificationUrl = `${url.origin}/api/miniapps-notifications`
-					}
-				} catch { /* manifest fetch failed — meymar may not be running */ }
-
-				const details = {
-					url: notificationUrl,
-					token: crypto.randomUUID(),
-				}
-				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
-
-				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
-				if (webhookUrl) {
-					fetch(webhookUrl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-					}).catch(() => {})
-				}
-
-				return { result: { notificationDetails: details } }
-			},
-			addMiniApp: async () => {
-				// Derive notification URL from webhookUrl in manifest
-				let notificationUrl = 'http://localhost:3200/api/miniapps-notifications' // fallback
-				let webhookUrl: string | undefined
-
-				try {
-					const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-					webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
-					if (webhookUrl) {
-						const url = new URL(webhookUrl)
-						notificationUrl = `${url.origin}/api/miniapps-notifications`
-					}
-				} catch { /* manifest fetch failed — meymar may not be running */ }
-
-				const details = {
-					url: notificationUrl,
-					token: crypto.randomUUID(),
-				}
-				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
-
-				// POST webhook to the miniapp's webhookUrl (mimics Farcaster client behavior)
-				if (webhookUrl) {
-					fetch(webhookUrl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
-					}).catch(() => {})
-				}
-
-				return { result: { notificationDetails: details } }
-			},
-
-			viewCast: () => {},
-			viewProfile: () => {},
-			openMiniApp: () => {},
-			composeCast: () => ({ cast: null }),
-			viewToken: () => {},
-			sendToken: () =>
-				Promise.resolve({
-					success: false,
-					reason: 'send_failed',
-					error: { error: 'not_supported', message: 'Not supported in sandbox' },
-				}),
-			swapToken: () =>
-				Promise.resolve({
-					success: false,
-					reason: 'swap_failed',
-					error: { error: 'not_supported', message: 'Not supported in sandbox' },
-				}),
-			requestCameraAndMicrophoneAccess: () => Promise.resolve(),
-			impactOccurred: () => undefined,
-			notificationOccurred: () => undefined,
-			selectionChanged: () => undefined,
+			// All other actions from helper
+			...hostActions,
 		}
 
 		expose(host, endpoint)
