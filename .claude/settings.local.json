@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.base.org)",
+      "WebFetch(domain:docs.cdp.coinbase.com)",
+      "Read(//Users/Mario/op/mustard-farcaster-miniapp/**)",
+      "WebFetch(domain:docs.neynar.com)",
+      "WebFetch(domain:neynar.com)",
+      "WebFetch(domain:dev.neynar.com)"
+    ]
+  }
+}

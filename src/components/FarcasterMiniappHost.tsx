@@ -218,7 +218,7 @@ export function FarcasterMiniappHost({
 	)
 
 	// ============================================================================
-	// Helper Functions: Extract complex logic for better readability
+	// Helper Functions
 	// ============================================================================
 
 	// Helper: Create EIP-6963 provider info
@@ -229,20 +229,17 @@ export function FarcasterMiniappHost({
 		uuid: crypto.randomUUID(),
 	} as const)
 
-	// Helper: Derive notification URL from manifest's webhookUrl
-	const deriveNotificationUrl = async (targetOrigin: string) => {
+	// The host's notification service - always the same regardless of miniapp
+	const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
+	const MEYMAR_WEBHOOK_URL = 'http://localhost:3200/webhook'
+
+	// Helper: Get miniapp's webhookUrl from its manifest
+	const getManifestWebhookUrl = async (targetOrigin: string) => {
 		try {
 			const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-			const webhookUrl = (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
-			if (webhookUrl) {
-				const url = new URL(webhookUrl)
-				return {
-					notificationUrl: `${url.origin}/api/miniapps-notifications`,
-					webhookUrl,
-				}
-			}
+			return (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
 		} catch { /* manifest fetch failed */ }
-		return { notificationUrl: undefined, webhookUrl: undefined }
+		return undefined
 	}
 
 	// Helper: Create message posting utilities
@@ -291,25 +288,37 @@ export function FarcasterMiniappHost({
 		// Shared implementation for addMiniApp/addFrame
 		const addMiniAppImpl = async () => {
 			try {
-				const { notificationUrl, webhookUrl } = await deriveNotificationUrl(targetOrigin)
-				const details = { url: notificationUrl, token: crypto.randomUUID() }
+				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
+				// Notification URL always points to the host's notification service
+				const details = { url: NOTIFICATION_SERVER_URL, token: crypto.randomUUID() }
+				const webhookPayload = { event: 'miniapp_added', notificationDetails: details }
 
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
+				// Always register the token with the host's notification store
+				fetch(MEYMAR_WEBHOOK_URL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(webhookPayload),
+				}).catch((err) => {
+					console.error('[HOST] webhook error:', err)
+				})
+
+				// Also forward webhook to the miniapp's own backend
 				if (webhookUrl) {
 					fetch(webhookUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ event: 'miniapp_added', notificationDetails: details }),
+						body: JSON.stringify(webhookPayload),
 					}).catch((err) => {
-						console.error('[HOST] Webhook fetch error:', err);
+						console.error('[HOST] Miniapp webhook error:', err)
 					})
 				}
 
 				return { result: { notificationDetails: details } }
 			} catch (error) {
-				console.error('[HOST] addMiniApp error:', error);
-				throw error;
+				console.error('[HOST] addMiniApp error:', error)
+				throw error
 			}
 		};
 
