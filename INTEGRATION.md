@@ -167,4 +167,62 @@ Result: A Farcaster Mini App powered by Startale SDK, running in the sandbox.
 
 ---
 
+## 4. Accessing Context
+
+The Farcaster SDK provides context information from the host:
+
+```tsx
+import { sdk } from '@farcaster/miniapp-sdk';
+import { useEffect, useState } from 'react';
+
+function MyComponent() {
+  const [starPoints, setStarPoints] = useState<number | null>(null);
+  const [username, setUsername] = useState<string>('');
+  const [pfpUrl, setPfpUrl] = useState<string>('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const context = await sdk.context as {
+          user?: { username?: string; pfpUrl?: string; fid?: number };
+          startale?: { starPoints?: number };
+          client?: { platformType?: string };
+        };
+
+        if (context?.startale?.starPoints !== undefined) {
+          setStarPoints(context.startale.starPoints);
+        }
+        if (context?.user?.username) {
+          setUsername(context.user.username);
+        }
+        if (context?.user?.pfpUrl) {
+          setPfpUrl(context.user.pfpUrl);
+        }
+      } catch (e) {
+        console.error('Failed to read context:', e);
+      }
+    })();
+  }, []);
+
+  return (
+    <div>
+      <p>User: {username}</p>
+      <p>Star Points: {starPoints}</p>
+    </div>
+  );
+}
+```
+
+**Context Structure:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `user.fid` | `number` | Farcaster user ID |
+| `user.username` | `string` | Farcaster username |
+| `user.pfpUrl` | `string` | Profile picture URL |
+| `startale.starPoints` | `number` | User's star points in Startale ecosystem |
+| `client.platformType` | `string` | Platform type (`web`, `mobile`, etc.) |
+
+---
+
 **Reference:** See `inking-farcaster-miniapp/src/wagmi.ts` for a working example.
