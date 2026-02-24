@@ -10,8 +10,8 @@ This workspace contains three main projects for Farcaster MiniApp development:
 - Implements the Farcaster SDK host API including wallet, notifications, and frame interactions
 - Uses Comlink over postMessage for secure iframe communication
 
-### 2. **meymar** (port 3200)
-- Localhost notification server for Farcaster MiniApps
+### 2. **notify** (port 3200)
+- Host-side notification service for Farcaster MiniApps
 - Handles webhook events, stores notification tokens in SQLite
 - Provides APIs to send notifications back to miniapps
 - SSE stream for real-time notification updates in sandbox UI
@@ -25,13 +25,10 @@ This workspace contains three main projects for Farcaster MiniApp development:
 
 ### Notification Flow
 1. MiniApp calls `sdk.actions.addMiniApp()` → receives token + notification URL
-2. Sandbox sends webhook to meymar with token
+2. Sandbox sends webhook to notify with token
 3. MiniApp persists token in localStorage (no re-enabling needed)
 4. MiniApp sends notifications using the token
-5. Meymar validates and broadcasts via SSE
-
-### File Naming
-- `meymar` - notification server (not "notification-server")
+5. notify validates and broadcasts via SSE
 
 ## Documentation
 

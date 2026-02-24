@@ -1,44 +1,36 @@
 <div align="center">
   <img src="public/favicon.svg" alt="MiniApps Sandbox Logo" width="120" height="120">
   <h1>MiniApps Sandbox</h1>
-  <p>Development sandbox for third-party Farcaster Mini Apps integrating with Startale App</p>
+  <p>Development sandbox for Farcaster Mini Apps with Startale App</p>
 </div>
 
 ---
 
 ## 📋 Overview
 
-This sandbox demonstrates how to build and test Farcaster Mini Apps that integrate with **Startale App** for wallet authentication and Soneium interactions.
+Build and test Farcaster Mini Apps that integrate with **Startale App** for wallet authentication and Soneium blockchain interactions.
 
-### Key Features
-
-- 🔐 **Startale Wallet Authentication** - Connect using Startale App with smart contract wallet
-- ⛓️ **Soneium Network** - Currently supports Soneium blockchain only
-- 🔗 **Wagmi Integration** - Full interaction support via wagmi hooks
-- 📱 **Mini Apps Gallery** - Browse and launch Mini Apps
+**Key Features:**
+- 🔐 Startale Wallet Authentication
+- ⛓️ Soneium Network Support
+- 🔗 Wagmi Integration
+- 📱 Mini Apps Gallery
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Node.js 18+ and pnpm
-- A browser with wallet support (for testing)
-
-### Quick Start - All Services
-
-Use the provided script to start both the sandbox and notification service:
+### Start All Services
 
 ```bash
 ./start.sh
 ```
 
-This starts both services in the background:
-- **sandbox** at `http://localhost:3100` — the host/client UI
-- **notify** at `http://localhost:3200` — notification service (token storage, SSE delivery)
+This starts:
+- **Sandbox** at `http://localhost:3100` — host/client UI
+- **Notify** at `http://localhost:3200` — notification service
 
-To stop all services:
+To stop:
 ```bash
 ./stop.sh
 ```
@@ -50,14 +42,13 @@ To stop all services:
 pnpm install
 pnpm dev
 ```
-The sandbox will be available at `http://localhost:3100`
 
-**With notification service** (run in separate terminals):
+**With notifications** (separate terminals):
 ```bash
-# Terminal 1 - Sandbox
+# Terminal 1
 pnpm dev
 
-# Terminal 2 - Notify service
+# Terminal 2
 cd notify
 pnpm install
 pnpm dev
@@ -65,66 +56,44 @@ pnpm dev
 
 ---
 
-### Add your Mini App
+## 📱 Add Your Mini App
 
-To add your Mini App to the sandbox, please follow the steps below:
-
-1. Add your Mini App to the `src/pages/configMiniApps.ts` file
-
-## 🔑 Understanding the Login Flow
-
-The sandbox demonstrates the complete authentication flow for Mini Apps using Startale SDK:
-
-### 1. **Wallet Connection**
-- Users connect via **Startale App** using RainbowKit UI
-- The Startale connector is configured in `src/lib/wagmi.ts`
-- Connection uses the `@startale/app-sdk` package
-
-### 2. **Smart Contract Wallet**
-- **Important:** Startale App SDK returns a **smart contract wallet address**, not an EOA (Externally Owned Account)
-- This address is the user's on-chain identity for all transactions
-- Access the address via wagmi hooks: `const { address } = useAccount()`
-
-### 3. **Session Management**
-- Once connected, the wallet address is available throughout the app
-- Protected routes (like `/miniapps`) are only accessible when authenticated
-- Users can disconnect via the header button
+Edit [src/pages/configMiniApps.ts](src/pages/configMiniApps.ts) and add your Mini App to the gallery.
 
 ---
 
-## 📡 Notifications
+## 🔑 Login Flow
 
-For the full notification architecture (how tokens flow, who pays for what, notify vs Neynar), see:
+The sandbox demonstrates authentication using Startale SDK:
 
-### **[NOTIFICATIONS.md](./NOTIFICATIONS.md)**
+1. **Connect** - Users connect via Startale App (RainbowKit UI)
+2. **Smart Contract Wallet** - Startale returns a smart contract wallet address (not EOA)
+3. **Session** - Access the address via `const { address } = useAccount()`
 
 ---
 
-## 📚 Building Your Own Mini App
+## 📚 Documentation
 
-For detailed instructions on creating a Farcaster Mini App integrated with Startale SDK, see:
+### Build Your Own Mini App
 
-### **[INTEGRATION.md](./INTEGRATION.md)**
+**[INTEGRATION.md](./INTEGRATION.md)** — Step-by-step guide:
+- Creating and signing a Farcaster Mini App
+- Integrating Startale SDK
+- Wagmi configuration
+- Code examples
 
-This guide covers:
-- Creating and signing a Farcaster Mini App manifest
-- Account association and domain verification
-- Configuring wagmi with Startale connector
-- Using Startale SDK directly (with or without wagmi)
-- Complete code examples and reference implementations
+### Notifications
 
-### **[MINIAPP_DEVELOPMENT_NOTES.md](./MINIAPP_DEVELOPMENT_NOTES.md)**
-
-Technical notes for MiniApp developers:
-- Common issues and solutions
-- Best practices and debugging tips
-- Communication architecture details
+**[NOTIFICATIONS.md](./NOTIFICATIONS.md)** — How to use notifications:
+- Enable notifications in your Mini App
+- Send notifications from client or backend
+- Rate limits and best practices
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+MIT
 
 ---
 

@@ -1,189 +1,147 @@
-## Notification Architecture
+# Notifications
 
-### Roles
+The sandbox includes a built-in notification service (`notify`) that mimics how notifications work in production Farcaster.
 
-| Component | Role | Example |
-|---|---|---|
-| **Host/Client** | Farcaster app that runs miniapps, delivers notifications to users | Farcaster, this Sandbox |
-| **Host Notification Service** | Host's own backend that stores tokens and delivers notifications | Farcaster's built-in infra (production), `notify/` (sandbox) |
-| **Miniapp Notification Helper** | Optional third-party service that helps miniapp developers manage tokens and send notifications | Neynar |
-| **Miniapp** | Third-party app running inside the host | Inking, Mustard |
-| **Miniapp Backend** | Optional server for the miniapp | mustard-backend |
-
-### Notification Flow
+## How it works
 
 ```
-1. User clicks "Enable Notifications" in miniapp
-        |
-        v
-2. HOST generates { token, url } where url = HOST's notification service
-        |
-        +--> Sends to miniapp via SDK (addMiniApp response)
-        +--> Sends webhook to miniapp's webhookUrl (from manifest)
-        +--> Registers token with HOST's notification service
-        |
-3. Miniapp stores { token, url } for later use
-        .
-        . (later, when miniapp wants to notify user)
-        .
-4. Miniapp POSTs to the url it received from HOST (not its own webhookUrl!)
-        |
-        v
-5. HOST's notification service validates token and delivers to user
+1. User enables notifications in your Mini App
+        ↓
+2. Host generates a token + URL and sends it to your app
+        ↓
+3. Your app stores the token for later use
+        ⋮
+   (when you want to notify the user)
+        ↓
+4. Your app POSTs to the URL with the token
+        ↓
+5. Host validates and delivers the notification
 ```
 
-**Key insight**: The `notificationDetails.url` always points to the **HOST's** service. The miniapp's `webhookUrl` is for **receiving** lifecycle events, not for sending notifications.
+## Usage
 
-### notify vs Neynar — NOT the same thing
+### Enable notifications in your Mini App
 
-`notify/` and Neynar sit on **opposite sides** of the notification flow. They are not interchangeable.
+```typescript
+import sdk from '@farcaster/miniapp-sdk';
 
-```
-                HOST SIDE                          MINIAPP SIDE
-          (sandbox operator)                  (miniapp developer)
-         ┌─────────────────┐                ┌─────────────────┐
-         │     notify      │  ◄── POSTs ──  │  Neynar (opt.)  │
-         │                 │                │                 │
-         │ - Stores tokens │                │ - Stores tokens │
-         │ - Validates     │                │ - Manages       │
-         │   incoming      │                │   webhooks      │
-         │   notifications │                │ - Calls host's  │
-         │ - Delivers to   │                │   notification  │
-         │   user via SSE  │                │   URL on behalf │
-         │                 │                │   of miniapp    │
-         │ Equivalent to:  │                │                 │
-         │ Farcaster's     │                │ Paid service    │
-         │ built-in infra  │                │ for miniapp     │
-         └─────────────────┘                │ developers      │
-                                            └─────────────────┘
+// Request notification permission
+const { result } = await sdk.actions.addMiniApp();
+const { token, url } = result.notificationDetails;
+
+// Store these for later
+localStorage.setItem('notificationToken', token);
+localStorage.setItem('notificationUrl', url);
 ```
 
-| | **notify** | **Neynar** |
-|---|---|---|
-| **Side** | Host side | Miniapp developer side |
-| **Who runs it** | You (sandbox/host operator) | Neynar (third-party SaaS) |
-| **Who pays** | You (infra costs) | Miniapp developer |
-| **Purpose** | Receive notifications, validate tokens, deliver to users | Help miniapp devs manage tokens and send notifications |
-| **Equivalent to** | Farcaster's built-in notification infra | A convenience API for miniapp developers |
-| **Knows about miniapps?** | No — just validates tokens and delivers | Yes — manages per-miniapp webhooks and tokens |
-| **The host sees it?** | Yes — it IS the host's service | No — black box behind miniapp's webhookUrl |
+### Send a notification
 
-The host never interacts with Neynar. The miniapp developer never interacts with notify directly (only through the `notificationDetails.url` they received from the host).
+```typescript
+const token = localStorage.getItem('notificationToken');
+const url = localStorage.getItem('notificationUrl');
 
-### Who Provides What
-
-| URL | Set By | Points To | Purpose |
-|---|---|---|---|
-| `webhookUrl` (in manifest) | Miniapp developer | Miniapp's backend | Host sends lifecycle events TO miniapp |
-| `notificationDetails.url` | Host/client | Host's notification service | Miniapp sends notifications TO host |
-| `notificationDetails.token` | Host/client | - | Auth token for sending notifications |
-
-### Three Notification Scenarios
-
-#### Scenario 1: No Notifications
-
-Miniapp does not use notifications at all.
-
-| | Self-hosted | With Neynar |
-|---|---|---|
-| `webhookUrl` in manifest | Not set | Not set |
-| Miniapp backend needed | No | No |
-| Host notification service needed | No | No |
-| Cost | Free | Free |
-
-#### Scenario 2: Client-Only Notifications (while miniapp is open)
-
-Miniapp sends notifications directly from the browser while the user has it open. No backend needed, but notifications **stop when the app is closed**.
-
-| | Self-hosted | With Neynar |
-|---|---|---|
-| `webhookUrl` in manifest | Not needed | `https://api.neynar.com/f/app/<id>/event` |
-| Miniapp backend needed | No | No |
-| Who sends notification | Miniapp JS (browser) POSTs to `notificationDetails.url` | Same |
-| Token storage | localStorage in browser | Neynar stores tokens (miniapp also gets them via SDK) |
-| Works when app closed | **No** | **No** |
-| Who pays | Free (host handles delivery) | Miniapp developer pays Neynar for webhook management |
-
-**Example**: Inking - sends "NFT minted!" notification immediately from browser code.
-
-```
-Miniapp (browser JS)
-    | fetch(notificationDetails.url, { tokens: [token], title, body })
-    v
-Host's notification service (notify in sandbox, Farcaster's infra in production)
-    |
-    v
-User sees notification
+await fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    notificationId: crypto.randomUUID(),
+    title: 'Hello!',  // max 32 chars
+    body: 'Something happened',  // max 128 chars
+    targetUrl: window.location.href,
+    tokens: [token],
+  }),
+});
 ```
 
-#### Scenario 3: Backend Notifications (even when miniapp is closed)
-
-Miniapp has its own backend server that schedules and sends notifications independently of whether the user has the miniapp open.
-
-| | Self-hosted | With Neynar |
-|---|---|---|
-| `webhookUrl` in manifest | `https://my-backend.com/webhook` | `https://api.neynar.com/f/app/<id>/event` |
-| Miniapp backend needed | Yes | Yes (but simpler - Neynar manages tokens) |
-| Who sends notification | Backend POSTs to `notificationDetails.url` | Backend calls Neynar API, Neynar forwards to host |
-| Token storage | Miniapp backend database | Neynar manages tokens for you |
-| Works when app closed | **Yes** | **Yes** |
-| Who pays | Free (self-hosted infra costs only) | Miniapp developer pays Neynar |
-
-**Example**: Mustard - after minting, backend schedules a "mint again!" notification for 60 seconds later. Works even if user closes the miniapp.
-
-**Self-hosted flow**:
-```
-Miniapp (browser) --> Miniapp Backend: "user minted, schedule notification"
-                          |
-                          | (60s later, via scheduler)
-                          |
-                          | fetch(notificationDetails.url, { tokens, title, body })
-                          v
-                     Host's notification service (notify in sandbox, Farcaster's infra in production)
-                          |
-                          v
-                     User sees notification
-```
-
-**With Neynar**:
-```
-Miniapp (browser) --> Miniapp Backend: "user minted, schedule notification"
-                          |
-                          | (60s later)
-                          |
-                          | POST https://api.neynar.com/v2/farcaster/frame/notifications/
-                          v
-                     Neynar (looks up stored tokens, forwards to host)
-                          |
-                          v
-                     Host (Farcaster) delivers to user
-```
-
-### Who Pays for What
-
-| Service | Who pays | What you get |
-|---|---|---|
-| **Farcaster notification delivery** | Free (Farcaster absorbs cost) | Host delivers notifications to users |
-| **Neynar (miniapp-side)** | Miniapp developer | Managed webhook handling, token storage, send API, analytics |
-| **Self-hosted backend** | Miniapp developer (infra costs) | Full control, no per-API-call fees |
-| **notify (sandbox)** | Nobody (local dev) | Simulates Farcaster's host notification infrastructure locally |
-
-**Neynar pricing**: Credit-based tiers - Free (200K credits), Starter, Growth, Scale, Enterprise. Also supports x402 pay-per-use via onchain USDC micropayments.
-
-### Rate Limits (enforced by host)
+## Rate Limits
 
 - 1 notification per 30 seconds per token
 - 100 notifications per day per token
 
-### Sandbox Projects
+## Architecture
 
-| Project | Port | Role | Notifications |
-|---|---|---|---|
-| **miniapp-sandbox** | 3100 | Host/Client | Displays notifications via SSE from notify |
-| **notify/** | 3200 | Host Notification Service (like Farcaster's built-in infra) | Stores tokens, broadcasts notifications |
-| **inking** | 5173 | Miniapp (client-only) | Scenario 2: browser-only notifications |
-| **mustard** | 5174 | Miniapp (with backend) | Scenario 3: backend-scheduled notifications |
-| **mustard-backend** | 3300 | Miniapp Backend | Schedules delayed notifications, sends to notify |
+The `notify` service sits on the host side (sandbox). Your Mini App simply POSTs to the URL it received from the host.
 
----
+```
+┌─────────────┐         ┌─────────────┐         ┌──────────┐
+│  Your Mini  │  POST   │    notify   │   SSE   │ Sandbox  │
+│     App     │ ──────→ │  (host-side │ ──────→ │    UI    │
+│             │         │   service)  │         │          │
+└─────────────┘         └─────────────┘         └──────────┘
+                             ↑
+                             │ validates token
+                             │ enforces rate limits
+                             │ broadcasts to users
+```
+
+In production Farcaster, this infrastructure is built-in. In the sandbox, `notify` simulates it locally.
+
+## With a Backend
+
+If your Mini App has a backend server, it can send notifications even when the user closes your app:
+
+```typescript
+// In your backend
+app.post('/schedule-notification', async (req, res) => {
+  const { token, url } = req.body;
+
+  // Send immediately or schedule for later
+  setTimeout(async () => {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        notificationId: crypto.randomUUID(),
+        title: 'Come back!',
+        body: 'We miss you',
+        targetUrl: 'https://your-miniapp.com',
+        tokens: [token],
+      }),
+    });
+  }, 60000);  // 60 seconds later
+
+  res.json({ ok: true });
+});
+```
+
+## Using Neynar
+
+[Neynar](https://neynar.com) is a third-party service that simplifies notification management for Mini App developers. It sits on the **Mini App side** (not the host side).
+
+**What Neynar does:**
+- Stores notification tokens for you
+- Manages webhook lifecycle events
+- Provides a simple API to send notifications
+- Handles token management automatically
+
+**When to use Neynar:**
+- You want managed infrastructure instead of self-hosting
+- You need webhook handling without building your own backend
+- You prefer a simple API over managing tokens yourself
+
+**How it works:**
+
+```typescript
+// 1. Set webhookUrl in your manifest to Neynar
+{
+  "webhookUrl": "https://api.neynar.com/f/app/<your-id>/event"
+}
+
+// 2. Send notifications via Neynar API
+fetch('https://api.neynar.com/v2/farcaster/frame/notifications', {
+  method: 'POST',
+  headers: {
+    'api_key': 'YOUR_NEYNAR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    title: 'Hello!',
+    body: 'Something happened',
+    targetUrl: 'https://your-miniapp.com',
+    // Neynar handles token lookup for you
+  })
+});
+```
+
+Neynar is **optional** — you can self-host everything or use Neynar as a convenience layer. The choice depends on your infrastructure preferences and budget.
 
