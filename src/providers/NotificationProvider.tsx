@@ -33,32 +33,34 @@ export const useNotifications = () => useContext(NotificationContext)
 
 const NOTIFY_EVENTS_URL = 'http://localhost:3200/events'
 
-// Cache for manifest data
-const manifestCache = new Map<string, string>()
+// Cache for manifest iconUrl (null means "looked up, not found")
+const manifestCache = new Map<string, string | null>()
 
-// Fetch iconUrl from manifest based on notification's targetUrl
+// Fetch iconUrl from manifest via API proxy to avoid CORS issues
 async function enrichNotificationWithIcon(notification: Notification): Promise<Notification> {
 	try {
 		const url = new URL(notification.targetUrl)
 		const origin = url.origin
 
-		// Check cache first
+		// Check cache first (includes negative results)
 		if (manifestCache.has(origin)) {
-			return { ...notification, iconUrl: manifestCache.get(origin) }
+			const cached = manifestCache.get(origin)
+			return cached ? { ...notification, iconUrl: cached } : notification
 		}
 
-		// Fetch manifest
-		const manifestUrl = `${origin}/.well-known/farcaster.json`
-		const response = await fetch(manifestUrl)
-		const manifest = await response.json() as { miniapp?: { iconUrl?: string } }
-		const iconUrl = manifest?.miniapp?.iconUrl
-
-		if (iconUrl) {
-			manifestCache.set(origin, iconUrl)
-			return { ...notification, iconUrl }
+		// Fetch manifest via API proxy (same pattern as MiniAppsPage)
+		const res = await fetch(`/api/miniapp-manifest?origin=${encodeURIComponent(origin)}`)
+		if (!res.ok) {
+			manifestCache.set(origin, null)
+			return notification
 		}
+		const manifest = await res.json() as { miniapp?: { iconUrl?: string } }
+		const iconUrl = manifest?.miniapp?.iconUrl ?? null
+
+		manifestCache.set(origin, iconUrl)
+		return iconUrl ? { ...notification, iconUrl } : notification
 	} catch {
-		// Failed to fetch manifest or parse, return notification as-is
+		manifestCache.set(origin, null)
 	}
 
 	return notification

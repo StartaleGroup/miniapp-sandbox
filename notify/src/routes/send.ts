@@ -78,6 +78,12 @@ sendRoute.post('/', async (c) => {
         }),
       })
 
+      if (!res.ok) {
+        throw new Error(
+          `Notification endpoint ${notificationUrl} responded with ${res.status} ${res.statusText}`,
+        )
+      }
+
       const data = (await res.json()) as {
         result?: {
           successfulTokens: string[]

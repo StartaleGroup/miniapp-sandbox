@@ -10,3 +10,9 @@ notify/data/*.db-shm
 # Service logs and PIDs
 .pids
 *.log
+
+# Lock files from wrong package manager
+notify/package-lock.json
+
+# Local Claude settings (machine-specific paths)
+.claude/settings.local.json

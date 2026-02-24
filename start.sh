@@ -19,7 +19,7 @@ if [ ! -d "notify/node_modules" ]; then
   echo -e "${YELLOW}Installing notify dependencies...${NC}"
   cd notify
   pnpm install
-  npm rebuild better-sqlite3
+  pnpm rebuild better-sqlite3
   cd ..
 fi
 

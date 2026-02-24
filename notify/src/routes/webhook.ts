@@ -77,15 +77,14 @@ webhookRoute.post('/', async (c) => {
       if (!event.notificationDetails) break
       const { url, token } = event.notificationDetails
 
-      // Upsert: replace existing token for this fid if one exists
+      // Deactivate any existing tokens for this fid, then insert a new active one
+      db.prepare(
+        `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ?`,
+      ).run(fid)
       db.prepare(
         `
         INSERT INTO notification_tokens (fid, token, notification_url, status, updated_at)
         VALUES (?, ?, ?, 'active', datetime('now'))
-        ON CONFLICT(token) DO UPDATE SET
-          status = 'active',
-          notification_url = excluded.notification_url,
-          updated_at = datetime('now')
       `,
       ).run(fid, token, url)
 
