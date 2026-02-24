@@ -25,9 +25,25 @@ This sandbox demonstrates how to build and test Farcaster Mini Apps that integra
 
 - Node.js 18+ and pnpm
 - A browser with wallet support (for testing)
-- Docker (optional, for running with notification service)
 
-### Development (without Docker)
+### Quick Start - All Services
+
+Use the provided script to start both the sandbox and notification service:
+
+```bash
+./start.sh
+```
+
+This starts both services in the background:
+- **sandbox** at `http://localhost:3100` — the host/client UI
+- **notify** at `http://localhost:3200` — notification service (token storage, SSE delivery)
+
+To stop all services:
+```bash
+./stop.sh
+```
+
+### Manual Development
 
 **Sandbox only:**
 ```bash
@@ -46,16 +62,6 @@ cd notify
 pnpm install
 pnpm dev
 ```
-
-### Docker (sandbox + notification service)
-
-```bash
-docker compose up --build
-```
-
-This starts both services:
-- **sandbox** at `http://localhost:3100` — the host/client UI
-- **notify** at `http://localhost:3200` — notification service (token storage, SSE delivery)
 
 ---
 

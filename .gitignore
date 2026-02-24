@@ -6,3 +6,7 @@ dist
 notify/data/*.db
 notify/data/*.db-wal
 notify/data/*.db-shm
+
+# Service logs and PIDs
+.pids
+*.log
