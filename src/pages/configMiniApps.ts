@@ -13,11 +13,20 @@ export const MINI_APPS: MiniAppConfig[] = [
 		id: 'inking',
 		name: 'Inking',
 		description: 'Demo minting App',
-		url: 'https://inking-farcaster-miniapp.vercel.app/',
-		// url: 'http://localhost:5173/',
+		// url: 'https://inking-farcaster-miniapp.vercel.app/',
+		url: 'http://localhost:5173/',
 		imageUrl: 'https://inking-farcaster-miniapp.vercel.app/preview.png',
 		category: 'NFT',
 		tags: ['minting', 'collectibles', 'demo'],
+	},
+	{
+		id: 'mustard',
+		name: 'Mustard',
+		description: 'Demo minting with backend notifications',
+		url: 'http://localhost:5174/',
+		imageUrl: 'http://localhost:5174/nft.svg',
+		category: 'NFT',
+		tags: ['minting', 'backend', 'demo'],
 	},
 	// Add your Mini App here:
 	// {
