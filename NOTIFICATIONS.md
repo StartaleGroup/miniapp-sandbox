@@ -55,6 +55,8 @@ await fetch(url, {
 
 ## Rate Limits
 
+The local sandbox does **not** enforce rate limits. In production Farcaster, the following limits apply:
+
 - 1 notification per 30 seconds per token
 - 100 notifications per day per token
 
@@ -70,7 +72,6 @@ The `notify` service sits on the host side (sandbox). Your Mini App simply POSTs
 └─────────────┘         └─────────────┘         └──────────┘
                              ↑
                              │ validates token
-                             │ enforces rate limits
                              │ broadcasts to users
 ```
 

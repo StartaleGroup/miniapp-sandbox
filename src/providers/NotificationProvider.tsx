@@ -38,9 +38,9 @@ const manifestCache = new Map<string, string | null>()
 
 // Fetch iconUrl from manifest via API proxy to avoid CORS issues
 async function enrichNotificationWithIcon(notification: Notification): Promise<Notification> {
+	let origin: string | undefined
 	try {
-		const url = new URL(notification.targetUrl)
-		const origin = url.origin
+		origin = new URL(notification.targetUrl).origin
 
 		// Check cache first (includes negative results)
 		if (manifestCache.has(origin)) {
@@ -60,7 +60,7 @@ async function enrichNotificationWithIcon(notification: Notification): Promise<N
 		manifestCache.set(origin, iconUrl)
 		return iconUrl ? { ...notification, iconUrl } : notification
 	} catch {
-		manifestCache.set(origin, null)
+		if (origin) manifestCache.set(origin, null)
 	}
 
 	return notification

@@ -1,9 +1,12 @@
 import Database from 'better-sqlite3'
+import fs from 'fs'
+import path from 'path'
 import { config } from './config.js'
 
 let db: Database.Database
 
 export function initDb(): Database.Database {
+  fs.mkdirSync(path.dirname(config.dbPath), { recursive: true })
   db = new Database(config.dbPath)
   db.pragma('journal_mode = WAL')
   db.exec(`
