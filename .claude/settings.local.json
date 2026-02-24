@@ -6,7 +6,8 @@
       "Read(//Users/Mario/op/mustard-farcaster-miniapp/**)",
       "WebFetch(domain:docs.neynar.com)",
       "WebFetch(domain:neynar.com)",
-      "WebFetch(domain:dev.neynar.com)"
+      "WebFetch(domain:dev.neynar.com)",
+      "WebFetch(domain:miniapps.farcaster.xyz)"
     ]
   }
 }
