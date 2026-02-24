@@ -39,7 +39,7 @@ This workspace contains three main projects for Farcaster MiniApp development:
 
 ## Tech Stack
 - Farcaster SDK (`@farcaster/miniapp-sdk`)
-- Hono (meymar server)
+- Hono (notify server)
 - Vite + React (miniapps)
 - better-sqlite3 (requires native build - use `enable-pre-post-scripts=true` in .npmrc)
 - Comlink (postMessage abstraction)

@@ -58,7 +58,7 @@ function createProviderInfo() {
 
 function createHostContext() {
 	return {
-		user: { fid: 3, username: undefined, displayName: undefined, pfpUrl: undefined },
+		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
 		location: { type: 'launcher' as const },
 		client: {
 			platformType: 'web' as const,
@@ -70,7 +70,9 @@ function createHostContext() {
 			haptics: false,
 			cameraAndMicrophoneAccess: Boolean(navigator.mediaDevices?.getUserMedia),
 		},
-		starPoints: 100,
+		startale:{
+			starPoints: 100,
+		}
 	}
 }
 

@@ -59,7 +59,7 @@ export const MiniAppsPage = () => {
 	return (
 		<>
 			{!activeMiniApp ? (
-				<div className="flex w-full flex-col gap-8 px-4 py-6 md:max-w-lg">
+				<div className="flex w-full flex-col gap-8 px-4 py-6 md:max-w-[572px]">
 					<h1 className="font-semibold text-2xl text-zinc-950 leading-8">
 						Mini Apps
 					</h1>
@@ -69,7 +69,7 @@ export const MiniAppsPage = () => {
 							Discover and interact with mini apps
 						</p>
 
-						<div className="grid gap-4 md:grid-cols-2">
+						<div className="grid gap-4 md:grid-cols-2 items-start">
 						{MINI_APPS.map((app) => {
 							const meta = metaByAppId[app.id] ?? {
 								description: null,
@@ -84,15 +84,15 @@ export const MiniAppsPage = () => {
 								<button
 									key={app.id}
 									onClick={() => setActiveMiniApp(app)}
-									className="rounded-lg border border-zinc-200 p-4 text-left transition-all hover:border-violet-500 hover:shadow-md"
+									className="flex flex-col rounded-lg border border-zinc-200 p-4 text-left transition-all hover:border-violet-500 hover:shadow-md"
 									type="button"
 								>
 									{app.imageUrl && (
-										<div className="mb-3 h-32 w-full overflow-hidden rounded-md bg-zinc-100">
+										<div className="mb-3 aspect-[3/2] w-full overflow-hidden rounded-md bg-zinc-100">
 											<img
 												src={app.imageUrl}
 												alt={app.name}
-												className="h-full w-full object-cover object-top"
+												className="h-full w-full object-cover"
 											/>
 										</div>
 									)}
