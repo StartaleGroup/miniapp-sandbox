@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 *.local
+notify/data/*.db
+notify/data/*.db-wal
+notify/data/*.db-shm

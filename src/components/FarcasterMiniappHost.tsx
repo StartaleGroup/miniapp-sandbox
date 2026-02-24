@@ -229,9 +229,9 @@ export function FarcasterMiniappHost({
 		uuid: crypto.randomUUID(),
 	} as const)
 
-	// The host's notification service - always the same regardless of miniapp
+	// The host's notification service — always the same regardless of miniapp
 	const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
-	const MEYMAR_WEBHOOK_URL = 'http://localhost:3200/webhook'
+	const NOTIFY_WEBHOOK_URL = 'http://localhost:3200/webhook'
 
 	// Helper: Get miniapp's webhookUrl from its manifest
 	const getManifestWebhookUrl = async (targetOrigin: string) => {
@@ -296,7 +296,7 @@ export function FarcasterMiniappHost({
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
 				// Always register the token with the host's notification store
-				fetch(MEYMAR_WEBHOOK_URL, {
+				fetch(NOTIFY_WEBHOOK_URL, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(webhookPayload),

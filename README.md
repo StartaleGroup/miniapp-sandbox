@@ -14,7 +14,7 @@ This sandbox demonstrates how to build and test Farcaster Mini Apps that integra
 
 - 🔐 **Startale Wallet Authentication** - Connect using Startale App with smart contract wallet
 - ⛓️ **Soneium Network** - Currently supports Soneium blockchain only
-- 🔗 **Wagmi Integration** - Full Ethereum interaction support via wagmi hooks
+- 🔗 **Wagmi Integration** - Full interaction support via wagmi hooks
 - 📱 **Mini Apps Gallery** - Browse and launch Mini Apps
 
 ---
@@ -25,22 +25,37 @@ This sandbox demonstrates how to build and test Farcaster Mini Apps that integra
 
 - Node.js 18+ and pnpm
 - A browser with wallet support (for testing)
+- Docker (optional, for running with notification service)
 
-### Installation
+### Development (without Docker)
 
+**Sandbox only:**
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd miniapp-sandbox
-
-# Install dependencies
 pnpm install
+pnpm dev
+```
+The sandbox will be available at `http://localhost:3100`
 
-# Start development server
+**With notification service** (run in separate terminals):
+```bash
+# Terminal 1 - Sandbox
+pnpm dev
+
+# Terminal 2 - Notify service
+cd notify
+pnpm install
 pnpm dev
 ```
 
-The sandbox will be available at `http://localhost:3100`
+### Docker (sandbox + notification service)
+
+```bash
+docker compose up --build
+```
+
+This starts both services:
+- **sandbox** at `http://localhost:3100` — the host/client UI
+- **notify** at `http://localhost:3200` — notification service (token storage, SSE delivery)
 
 ---
 
@@ -68,6 +83,14 @@ The sandbox demonstrates the complete authentication flow for Mini Apps using St
 - Once connected, the wallet address is available throughout the app
 - Protected routes (like `/miniapps`) are only accessible when authenticated
 - Users can disconnect via the header button
+
+---
+
+## 📡 Notifications
+
+For the full notification architecture (how tokens flow, who pays for what, notify vs Neynar), see:
+
+### **[NOTIFICATIONS.md](./NOTIFICATIONS.md)**
 
 ---
 

@@ -31,7 +31,7 @@ const NotificationContext = createContext<NotificationContextValue>({
 
 export const useNotifications = () => useContext(NotificationContext)
 
-const MEYMAR_EVENTS_URL = 'http://localhost:3200/events'
+const NOTIFY_EVENTS_URL = 'http://localhost:3200/events'
 
 // Cache for manifest data
 const manifestCache = new Map<string, string>()
@@ -70,7 +70,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 	const eventSourceRef = useRef<EventSource | null>(null)
 
 	useEffect(() => {
-		const es = new EventSource(MEYMAR_EVENTS_URL)
+		const es = new EventSource(NOTIFY_EVENTS_URL)
 		eventSourceRef.current = es
 
 		es.addEventListener('notification', (e) => {
