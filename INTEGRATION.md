@@ -119,15 +119,51 @@ const response = await provider.request({
 
 ---
 
+## 3. Register your app in the Sandbox
+
+Add your Mini App to `src/pages/configMiniApps.ts` so it appears in the sandbox launcher:
+
+```ts
+// src/pages/configMiniApps.ts
+export const MINI_APPS: MiniAppConfig[] = [
+  // ... existing apps ...
+  {
+    id: 'your-app-id',
+    name: 'Your App Name',
+    description: 'Short description of your app',
+    url: 'http://localhost:5175/',          // local dev URL
+    imageUrl: 'http://localhost:5175/preview.png', // preview image (3:2 ratio)
+    category: 'DeFi',                       // optional: DeFi, NFT, Gaming, Social, etc.
+    tags: ['swap', 'trading'],              // optional
+  },
+];
+```
+
+**Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier (kebab-case) |
+| `name` | Yes | Display name in the launcher |
+| `description` | Yes | Short description shown on the app card |
+| `url` | Yes | Your miniapp URL (localhost for dev, deployed URL for prod) |
+| `imageUrl` | Yes | Preview image for the app card (3:2 aspect ratio) |
+| `category` | No | Category badge (e.g. `NFT`, `DeFi`, `Gaming`) |
+| `tags` | No | Tags shown on the app card |
+
+The sandbox automatically reads your app's `/.well-known/farcaster.json` manifest to fetch the icon, description, and category. Values from the manifest override the static config above.
+
+---
+
 ## Summary
 
 | Step | Action |
 |------|--------|
 | 1 | Build and sign using [Farcaster's docs](https://miniapps.farcaster.xyz) |
 | 2 | Add Startale connector to wagmi config (or use SDK directly) |
-| 3 | Remove Farcaster's wallet connector if present |
+| 3 | Register your app in `src/pages/configMiniApps.ts` |
 
-Result: A Farcaster Mini App powered by Startale SDK.
+Result: A Farcaster Mini App powered by Startale SDK, running in the sandbox.
 
 ---
 

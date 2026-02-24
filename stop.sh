@@ -10,8 +10,9 @@ echo -e "${RED}Stopping MiniApp Sandbox services...${NC}\n"
 if [ -f .pids ]; then
   while read pid; do
     if ps -p $pid > /dev/null 2>&1; then
-      echo -e "Stopping process $pid..."
-      kill $pid
+      echo -e "Stopping process $pid and its children..."
+      pkill -P $pid 2>/dev/null
+      kill $pid 2>/dev/null
     fi
   done < .pids
   rm .pids
