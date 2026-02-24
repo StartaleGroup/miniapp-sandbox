@@ -126,6 +126,7 @@ export const MiniAppsPage = () => {
 				</div>
 			) : (
 				<FarcasterMiniappHost
+					key={activeMiniApp.url}
 					src={activeMiniApp.url}
 					title={activeMiniApp.name}
 					onClose={() => setActiveMiniApp(null)}

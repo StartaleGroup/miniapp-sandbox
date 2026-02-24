@@ -113,6 +113,13 @@ This guide covers:
 - Using Startale SDK directly (with or without wagmi)
 - Complete code examples and reference implementations
 
+### **[MINIAPP_DEVELOPMENT_NOTES.md](./MINIAPP_DEVELOPMENT_NOTES.md)**
+
+Technical notes for MiniApp developers:
+- Common issues and solutions
+- Best practices and debugging tips
+- Communication architecture details
+
 ---
 
 ## 📄 License
