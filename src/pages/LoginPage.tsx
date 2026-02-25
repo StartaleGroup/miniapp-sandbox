@@ -1,4 +1,4 @@
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { Navigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import appLogo from "~/icons/app-logo-purple.svg";
@@ -18,7 +18,7 @@ export const LoginPage = () => {
 					<h2 className="text-violet-600">MiniApps Sandbox</h2>
 				</div>
 				<p className="text-center">Connect your wallet to get started</p>
-				<ConnectButton />
+				<DynamicWidget />
 			</div>
 		</div>
 	);

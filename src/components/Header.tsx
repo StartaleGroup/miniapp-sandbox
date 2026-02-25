@@ -1,12 +1,13 @@
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { Copy, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount } from "wagmi";
 import appLogo from "~/icons/app-logo-purple.svg";
 
 export const Header = () => {
 	const { isConnected, address } = useAccount();
-	const { disconnect } = useDisconnect();
+	const { handleLogOut } = useDynamicContext();
 	const { pathname } = useLocation();
 	const [copied, setCopied] = useState(false);
 
@@ -62,7 +63,7 @@ export const Header = () => {
 						{/* Disconnect button */}
 						<button
 							className="flex cursor-pointer items-center gap-1 rounded-full bg-violet-600 px-3 py-2 transition-colors hover:bg-violet-700"
-							onClick={() => disconnect()}
+							onClick={() => handleLogOut()}
 							type="button"
 						>
 							<LogOut className="size-4 text-white" />
