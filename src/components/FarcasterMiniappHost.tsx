@@ -8,9 +8,10 @@
 import { expose } from 'comlink'
 import { X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPublicClient, http } from 'viem'
+import { createPublicClient, createWalletClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
@@ -37,6 +38,29 @@ function safeParseUrl(raw: string): URL | null {
 		return new URL(raw)
 	} catch {
 		return null
+	}
+}
+
+/**
+ * Temporarily monkey-patch window.fetch so that requests to
+ * app.startale.com go through the Vite dev-server proxy instead,
+ * bypassing the browser CORS restriction.  Restores fetch when done.
+ */
+async function withStartaleProxy<T>(fn: () => Promise<T>): Promise<T> {
+	const origFetch = window.fetch.bind(window)
+	const proxyOrigin = window.location.origin
+	;(window as any).fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+		let url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url
+		if (url.includes('app.startale.com')) {
+			const proxied = url.replace('https://app.startale.com', proxyOrigin + '/api/startale-proxy')
+			return origFetch(proxied, init)
+		}
+		return origFetch(input, init)
+	}
+	try {
+		return await fn()
+	} finally {
+		window.fetch = origFetch
 	}
 }
 
@@ -108,8 +132,12 @@ function buildHostObject({
 	hostActions: Record<string, unknown>
 	handleEip1193Request: (method: string, params: unknown[] | undefined) => Promise<unknown>
 }): Record<string, unknown> {
+	const ctx = createHostContext()
 	return {
-		context: createHostContext(),
+		get context() {
+			console.log('[sandbox] Comlink GET context → returning:', JSON.stringify(ctx))
+			return ctx
+		},
 
 		getCapabilities: () =>
 			Promise.resolve([
@@ -171,7 +199,23 @@ export function FarcasterMiniappHost({
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const { address } = useAccount()
 	const publicClient = usePublicClient()
-	const { data: walletClient } = useWalletClient()
+	const { data: walletClient, status: walletClientStatus } = useWalletClient({ chainId: soneium.id })
+	const { primaryWallet } = useDynamicContext()
+
+	// Refs so the comlink handler always reads the latest values without
+	// needing to tear down and re-expose the iframe endpoint on every change.
+	const addressRef = useRef(address)
+	const walletClientRef = useRef(walletClient)
+	const publicClientRef = useRef(publicClient)
+	const primaryWalletRef = useRef<unknown>(primaryWallet)
+	useEffect(() => { addressRef.current = address }, [address])
+	useEffect(() => { walletClientRef.current = walletClient }, [walletClient])
+	useEffect(() => { publicClientRef.current = publicClient }, [publicClient])
+	useEffect(() => { primaryWalletRef.current = primaryWallet }, [primaryWallet])
+
+	useEffect(() => {
+		console.log('[sandbox] useWalletClient status:', walletClientStatus, '| data:', walletClient ? `acct ${walletClient.account?.address}` : 'null')
+	}, [walletClient, walletClientStatus])
 
 	const [pendingApproval, setPendingApproval] = useState<PendingApproval>(null)
 
@@ -208,6 +252,23 @@ export function FarcasterMiniappHost({
 
 	const handleEip1193Request = useCallback(
 		async (method: string, params: unknown[] | undefined) => {
+			const address = addressRef.current
+			const publicClient = publicClientRef.current
+			// Use wagmi wallet client if available; fall back to Dynamic's primaryWallet
+			// when useWalletClient() hasn't resolved (common with WaaS on first load).
+			// Note: eth_sendTransaction creates its own signing client with a CORS-safe
+			// transport and doesn't use this walletClient — see that case below.
+			let walletClient = walletClientRef.current
+			if (!walletClient) {
+				const dynWallet = primaryWalletRef.current as any
+				if (dynWallet && typeof dynWallet.getWalletClient === 'function') {
+					try {
+						walletClient = await dynWallet.getWalletClient()
+					} catch (e) {
+						console.error('[sandbox] primaryWallet.getWalletClient() failed:', e)
+					}
+				}
+			}
 			switch (method) {
 				case 'wallet_switchEthereumChain': {
 					const p0 = params?.[0] as Record<string, unknown> | undefined
@@ -281,7 +342,7 @@ export function FarcasterMiniappHost({
 					return await walletClient.signTypedData(typedData)
 				}
 				case 'eth_sendTransaction': {
-					if (!address || !walletClient)
+					if (!address)
 						throw new ProviderRpcError(4001, 'Wallet not connected')
 
 					const tx = params?.[0] as
@@ -295,16 +356,59 @@ export function FarcasterMiniappHost({
 						JSON.stringify(tx, null, 2),
 					)
 
-					const hash = await walletClient.sendTransaction({
-						to: tx.to as `0x${string}`,
-						data: (tx.data as `0x${string}` | undefined) ?? undefined,
-						value: tx.value ? BigInt(tx.value) : 0n,
+					// Get the WaaS connector's LOCAL viem account directly.
+					// This bypasses Dynamic's gatedAccount / interceptTransport which
+					// routes through the dashboard-configured RPC (eth-mainnet).
+					// The LOCAL account's signTransaction() calls the MPC service
+					// with whatever chainId viem puts in the transaction envelope.
+					const dynWallet = primaryWalletRef.current as any
+					const connector = dynWallet?.connector
+					let localAccount: any = null
+					if (connector?.getViemAccount) {
+						try {
+							localAccount = await connector.getViemAccount({ accountAddress: address })
+							console.log('[eth_sendTransaction] got LOCAL account, type:', localAccount?.type)
+						} catch (e) {
+							console.error('[eth_sendTransaction] connector.getViemAccount() failed:', e)
+						}
+					}
+
+					if (!localAccount) {
+						throw new ProviderRpcError(4001, 'Could not get WaaS signing account')
+					}
+
+					// Create a wallet client pointed at the PUBLIC Soneium RPC.
+					// Gas estimation, nonce lookup, and eth_sendRawTransaction all
+					// hit rpc.soneium.org - no CORS issues, correct chain.
+					const soneiumRpc = chain.rpcUrls.default.http[0]
+					const signingClient = createWalletClient({
+						account: localAccount,
 						chain,
+						transport: http(soneiumRpc),
 					})
 
+					// The MPC signTransaction internally calls Startale APIs, so
+					// wrap with the fetch proxy to avoid browser CORS.
+					let hash: `0x${string}`
+					try {
+						hash = await withStartaleProxy(() =>
+							signingClient.sendTransaction({
+								account: localAccount,
+								to: tx.to as `0x${string}`,
+								data: (tx.data as `0x${string}` | undefined) ?? undefined,
+								value: tx.value ? BigInt(tx.value) : 0n,
+								chain,
+							})
+						)
+					} catch (e) {
+						console.error('[eth_sendTransaction] sendTransaction threw:', e)
+						throw e
+					}
+
+					// Wait for the receipt on Soneium.
 					const client =
 						publicClient ??
-						createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) })
+						createPublicClient({ chain, transport: http(soneiumRpc) })
 
 					const receipt = await client.waitForTransactionReceipt({ hash })
 					if (receipt.status === 'reverted') {
@@ -333,7 +437,7 @@ export function FarcasterMiniappHost({
 				}
 			}
 		},
-		[address, walletClient, chain, publicClient, waitForApproval],
+		[chain, waitForApproval],
 	)
 
 	// Helper: Create host action handlers (defined inside component because it uses onClose)
@@ -431,6 +535,7 @@ export function FarcasterMiniappHost({
 			const hostActions = createHostActions(targetOrigin, postFrameEvent, providerInfo)
 			const host = buildHostObject({ chain, hostActions, handleEip1193Request })
 
+			console.log('[sandbox] expose(host, endpoint) for origin:', targetOrigin)
 			expose(host, endpoint)
 
 			postFrameEvent({ event: 'eip6963:announceProvider', info: providerInfo })
@@ -453,7 +558,7 @@ export function FarcasterMiniappHost({
 			if (timeoutId) clearTimeout(timeoutId)
 			disposeEndpoint?.()
 		}
-	}, [address, chain, createHostActions, handleEip1193Request, isAllowed, targetOrigin])
+	}, [chain, createHostActions, isAllowed, targetOrigin])
 
 	// ============================================================================
 	// Render

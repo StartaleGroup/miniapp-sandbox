@@ -1,10 +1,21 @@
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAccount } from "wagmi";
 import appLogo from "~/icons/app-logo-purple.svg";
 
 export const LoginPage = () => {
-	const { isConnected } = useAccount();
+	const { isConnected, address, status } = useAccount();
+	const { sdkHasLoaded } = useDynamicContext();
+
+	useEffect(() => {
+		console.log("[Login] wagmi:", { isConnected, address, status });
+	}, [isConnected, address, status]);
+
+	useEffect(() => {
+		console.log("[Login] sdkHasLoaded:", sdkHasLoaded);
+	}, [sdkHasLoaded]);
 
 	if (isConnected) {
 		return <Navigate replace to="/miniapps" />;

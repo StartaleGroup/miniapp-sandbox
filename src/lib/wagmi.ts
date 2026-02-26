@@ -1,13 +1,13 @@
 import { http } from "viem";
 import { soneium } from "viem/chains";
-import { createConfig, injected } from "wagmi";
+import { createConfig } from "wagmi";
 
 export const wagmiConfig = createConfig({
 	chains: [soneium],
+	multiInjectedProviderDiscovery: false,
 	transports: {
 		[soneium.id]: http(),
 	},
-	connectors: [injected()],
 });
 
 declare module "wagmi" {
