@@ -4,6 +4,7 @@ import { useNotifications } from '~/providers/NotificationProvider'
 import { useAccount } from 'wagmi'
 import { cn } from '~/lib/utils'
 
+/** Notification bell with dropdown panel of recent notifications. */
 export function NotificationBell() {
 	const { notifications, unreadCount, markAllRead } = useNotifications()
 	const { isConnected } = useAccount()

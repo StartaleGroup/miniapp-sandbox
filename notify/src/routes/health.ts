@@ -6,6 +6,7 @@ const startTime = Date.now()
 
 export const healthRoute = new Hono()
 
+/** Return server status, uptime, active tokens, and SSE client count. */
 healthRoute.get('/', (c) => {
   const db = getDb()
   const { count } = db

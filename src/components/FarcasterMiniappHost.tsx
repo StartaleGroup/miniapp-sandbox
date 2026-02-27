@@ -15,6 +15,7 @@ import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
 
+/** EIP-1193 compliant RPC error. */
 class ProviderRpcError extends Error {
 	code: number
 	details?: string
@@ -25,6 +26,7 @@ class ProviderRpcError extends Error {
 	}
 }
 
+/** Parse a URL string, returning null on failure. */
 function safeParseUrl(raw: string): URL | null {
 	try {
 		return new URL(raw)
@@ -40,6 +42,7 @@ function safeParseUrl(raw: string): URL | null {
 const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
 const NOTIFY_WEBHOOK_URL = 'http://localhost:3200/webhook'
 
+/** Create EIP-6963 provider metadata. */
 function createProviderInfo() {
 	return {
 		icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSI0IiBmaWxsPSIjMTgxODFBIi8+PHBhdGggZD0iTTUgOEg5IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA1SDExIiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA5LjVIMTEiIHN0cm9rZT0iI0ZGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
@@ -49,6 +52,7 @@ function createProviderInfo() {
 	} as const
 }
 
+/** Create the initial Farcaster host context sent to the miniapp. */
 function createHostContext() {
 	return {
 		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
@@ -69,6 +73,7 @@ function createHostContext() {
 	}
 }
 
+/** Create helpers for posting messages to the miniapp iframe. */
 function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	return {
 		postFrameEvent: (event: unknown) => {
@@ -83,6 +88,7 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	}
 }
 
+/** Fetch the webhookUrl from a miniapp's farcaster.json manifest. */
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
 		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())

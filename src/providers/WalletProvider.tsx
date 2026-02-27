@@ -13,6 +13,7 @@ interface WalletProviderProps {
 	children: ReactNode;
 }
 
+/** Provides wallet connection via RainbowKit and wagmi. */
 export const WalletProvider = ({ children }: WalletProviderProps) => {
 	return (
 		<WagmiProvider config={wagmiConfig}>

@@ -3,6 +3,7 @@ import { addClient, removeClient } from '../sse.js'
 
 export const eventsRoute = new Hono()
 
+/** SSE endpoint that streams real-time notifications to connected clients. */
 eventsRoute.get('/', (c) => {
   const clientId = crypto.randomUUID()
   console.log(`  \x1b[35m✓ SSE_EVENTS\x1b[0m Client connected: ${clientId}`)

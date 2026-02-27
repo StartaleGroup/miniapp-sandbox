@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { useAccount, useDisconnect } from "wagmi";
 import appLogo from "~/icons/app-logo-purple.svg";
 
+/** Top bar with page title, wallet address, and disconnect button. */
 export const Header = () => {
 	const { isConnected, address } = useAccount();
 	const { disconnect } = useDisconnect();

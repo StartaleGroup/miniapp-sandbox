@@ -36,6 +36,7 @@ const JfsSchema = z.object({
 
 export const webhookRoute = new Hono()
 
+/** Handle miniapp lifecycle events (added, removed, notifications enabled/disabled). */
 webhookRoute.post('/', async (c) => {
   const body = await c.req.json()
 
@@ -82,7 +83,7 @@ webhookRoute.post('/', async (c) => {
       if (!event.notificationDetails) break
       const { url, token } = event.notificationDetails
 
-      // Deactivate previous tokens for this fid+miniapp only (not all miniapps)
+      // Deactivate previous tokens for this fid+miniapp pair before inserting new one
       db.prepare(
         `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ? AND miniapp_origin = ?`,
       ).run(fid, miniappOrigin)

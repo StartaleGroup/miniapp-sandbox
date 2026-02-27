@@ -14,7 +14,7 @@ interface AppMeta {
 	tags: string[]
 }
 
-/** Fetch manifest via superapp API proxy to avoid CORS. */
+/** Fetch miniapp metadata from the farcaster.json manifest. */
 async function fetchAppMeta(app: MiniAppConfig): Promise<AppMeta> {
 	try {
 		const origin = new URL(app.url).origin
@@ -34,6 +34,7 @@ async function fetchAppMeta(app: MiniAppConfig): Promise<AppMeta> {
 	}
 }
 
+/** Displays available miniapps and hosts the selected one in an iframe. */
 export const MiniAppsPage = () => {
 	const [metaByAppId, setMetaByAppId] = useState<Record<string, AppMeta>>({})
 	const [activeMiniApp, setActiveMiniApp] = useState<MiniAppConfig | null>(null)
