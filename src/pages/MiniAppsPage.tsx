@@ -14,7 +14,7 @@ interface AppMeta {
 	tags: string[]
 }
 
-/** Fetch manifest via superapp API proxy to avoid CORS. */
+/** Fetch miniapp metadata from its Farcaster manifest via API proxy. */
 async function fetchAppMeta(app: MiniAppConfig): Promise<AppMeta> {
 	try {
 		const origin = new URL(app.url).origin

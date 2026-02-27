@@ -33,22 +33,19 @@ export const useNotifications = () => useContext(NotificationContext)
 
 const NOTIFY_EVENTS_URL = 'http://localhost:3200/events'
 
-// Cache for manifest iconUrl (null means "looked up, not found")
 const manifestCache = new Map<string, string | null>()
 
-// Fetch iconUrl from manifest via API proxy to avoid CORS issues
+/** Enrich a notification with the miniapp's icon from its Farcaster manifest. */
 async function enrichNotificationWithIcon(notification: Notification): Promise<Notification> {
 	let origin: string | undefined
 	try {
 		origin = new URL(notification.targetUrl).origin
 
-		// Check cache first (includes negative results)
 		if (manifestCache.has(origin)) {
 			const cached = manifestCache.get(origin)
 			return cached ? { ...notification, iconUrl: cached } : notification
 		}
 
-		// Fetch manifest via API proxy (same pattern as MiniAppsPage)
 		const res = await fetch(`/api/miniapp-manifest?origin=${encodeURIComponent(origin)}`)
 		if (!res.ok) {
 			manifestCache.set(origin, null)
@@ -78,19 +75,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 		es.addEventListener('notification', (e) => {
 			try {
 				const data = JSON.parse(e.data) as Notification
-				// Enrich notification with iconUrl from manifest
 				enrichNotificationWithIcon(data).then((enrichedData) => {
 					setNotifications((prev) => [enrichedData, ...prev])
 					setUnreadCount((prev) => prev + 1)
 				})
-			} catch {
-				// Ignore malformed events
-			}
+			} catch {}
 		})
 
-		es.onerror = () => {
-			// EventSource auto-reconnects; nothing to do
-		}
+		es.onerror = () => {}
 
 		return () => {
 			es.close()

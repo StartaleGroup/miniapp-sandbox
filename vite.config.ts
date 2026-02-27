@@ -46,10 +46,7 @@ export default defineConfig({
 		},
 	},
 	server: {
-		// Proxy ALL Startale RPC requests to bypass browser CORS restrictions.
-		// The Dynamic WaaS SDK makes fetch() calls to app.startale.com which
-		// doesn't allow CORS from localhost. The monkey-patched fetch in
-		// FarcasterMiniappHost rewrites those URLs to /api/startale-proxy/*.
+		// Proxy Startale API requests to bypass browser CORS restrictions.
 		proxy: {
 			"/api/startale-proxy": {
 				target: "https://app.startale.com",

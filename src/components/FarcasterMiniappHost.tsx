@@ -1,9 +1,6 @@
 /**
- * FarcasterMiniappHost - Farcaster MiniApp Client/Host Implementation
- *
- * Implements the Farcaster client/host side of the MiniApp protocol.
- * Hosts miniapps in an iframe and provides the Farcaster SDK host API
- * including wallet access, notifications, and frame interactions.
+ * Farcaster MiniApp host that runs miniapps in an iframe and exposes
+ * the SDK host API (wallet, notifications, frame actions) via Comlink.
  */
 import { expose } from 'comlink'
 import { X } from 'lucide-react'
@@ -14,7 +11,6 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
-
 
 class ProviderRpcError extends Error {
 	code: number
@@ -41,11 +37,7 @@ function safeParseUrl(raw: string): URL | null {
 	}
 }
 
-/**
- * Temporarily monkey-patch window.fetch so that requests to
- * app.startale.com go through the Vite dev-server proxy instead,
- * bypassing the browser CORS restriction.  Restores fetch when done.
- */
+/** Route app.startale.com requests through Vite dev-server proxy to bypass CORS. */
 async function withStartaleProxy<T>(fn: () => Promise<T>): Promise<T> {
 	const origFetch = window.fetch.bind(window)
 	const proxyOrigin = window.location.origin
@@ -64,13 +56,10 @@ async function withStartaleProxy<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
-// ============================================================================
-// Host Configuration Helpers (pure functions, defined outside component)
-// ============================================================================
-
 const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
 const NOTIFY_WEBHOOK_URL = 'http://localhost:3200/webhook'
 
+/** EIP-6963 provider metadata announced to the miniapp. */
 function createProviderInfo() {
 	return {
 		icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSI0IiBmaWxsPSIjMTgxODFBIi8+PHBhdGggZD0iTTUgOEg5IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA1SDExIiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA5LjVIMTEiIHN0cm9rZT0iI0ZGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
@@ -80,6 +69,7 @@ function createProviderInfo() {
 	} as const
 }
 
+/** Simulated Farcaster host context sent to the miniapp on init. */
 function createHostContext() {
 	return {
 		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
@@ -100,6 +90,7 @@ function createHostContext() {
 	}
 }
 
+/** Helpers to post frame and EIP-6963 events to the miniapp iframe. */
 function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	return {
 		postFrameEvent: (event: unknown) => {
@@ -114,6 +105,7 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	}
 }
 
+/** Fetch the miniapp's webhook URL from its Farcaster manifest. */
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
 		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
@@ -135,7 +127,6 @@ function buildHostObject({
 	const ctx = createHostContext()
 	return {
 		get context() {
-			console.log('[sandbox] Comlink GET context → returning:', JSON.stringify(ctx))
 			return ctx
 		},
 
@@ -183,10 +174,6 @@ function buildHostObject({
 	}
 }
 
-// ============================================================================
-// Component
-// ============================================================================
-
 export function FarcasterMiniappHost({
 	src,
 	title,
@@ -199,11 +186,10 @@ export function FarcasterMiniappHost({
 	const iframeRef = useRef<HTMLIFrameElement | null>(null)
 	const { address } = useAccount()
 	const publicClient = usePublicClient()
-	const { data: walletClient, status: walletClientStatus } = useWalletClient({ chainId: soneium.id })
+	const { data: walletClient } = useWalletClient({ chainId: soneium.id })
 	const { primaryWallet } = useDynamicContext()
 
-	// Refs so the comlink handler always reads the latest values without
-	// needing to tear down and re-expose the iframe endpoint on every change.
+	// Refs to avoid re-exposing the Comlink endpoint on every render.
 	const addressRef = useRef(address)
 	const walletClientRef = useRef(walletClient)
 	const publicClientRef = useRef(publicClient)
@@ -212,10 +198,6 @@ export function FarcasterMiniappHost({
 	useEffect(() => { walletClientRef.current = walletClient }, [walletClient])
 	useEffect(() => { publicClientRef.current = publicClient }, [publicClient])
 	useEffect(() => { primaryWalletRef.current = primaryWallet }, [primaryWallet])
-
-	useEffect(() => {
-		console.log('[sandbox] useWalletClient status:', walletClientStatus, '| data:', walletClient ? `acct ${walletClient.account?.address}` : 'null')
-	}, [walletClient, walletClientStatus])
 
 	const [pendingApproval, setPendingApproval] = useState<PendingApproval>(null)
 
@@ -254,10 +236,7 @@ export function FarcasterMiniappHost({
 		async (method: string, params: unknown[] | undefined) => {
 			const address = addressRef.current
 			const publicClient = publicClientRef.current
-			// Use wagmi wallet client if available; fall back to Dynamic's primaryWallet
-			// when useWalletClient() hasn't resolved (common with WaaS on first load).
-			// Note: eth_sendTransaction creates its own signing client with a CORS-safe
-			// transport and doesn't use this walletClient — see that case below.
+			// Fall back to Dynamic's primaryWallet if wagmi wallet client isn't ready.
 			let walletClient = walletClientRef.current
 			if (!walletClient) {
 				const dynWallet = primaryWalletRef.current as any
@@ -356,18 +335,13 @@ export function FarcasterMiniappHost({
 						JSON.stringify(tx, null, 2),
 					)
 
-					// Get the WaaS connector's LOCAL viem account directly.
-					// This bypasses Dynamic's gatedAccount / interceptTransport which
-					// routes through the dashboard-configured RPC (eth-mainnet).
-					// The LOCAL account's signTransaction() calls the MPC service
-					// with whatever chainId viem puts in the transaction envelope.
+					// Get the WaaS connector's local viem account for MPC signing.
 					const dynWallet = primaryWalletRef.current as any
 					const connector = dynWallet?.connector
 					let localAccount: any = null
 					if (connector?.getViemAccount) {
 						try {
 							localAccount = await connector.getViemAccount({ accountAddress: address })
-							console.log('[eth_sendTransaction] got LOCAL account, type:', localAccount?.type)
 						} catch (e) {
 							console.error('[eth_sendTransaction] connector.getViemAccount() failed:', e)
 						}
@@ -377,9 +351,7 @@ export function FarcasterMiniappHost({
 						throw new ProviderRpcError(4001, 'Could not get WaaS signing account')
 					}
 
-					// Create a wallet client pointed at the PUBLIC Soneium RPC.
-					// Gas estimation, nonce lookup, and eth_sendRawTransaction all
-					// hit rpc.soneium.org - no CORS issues, correct chain.
+					// Create a wallet client pointed at the public Soneium RPC.
 					const soneiumRpc = chain.rpcUrls.default.http[0]
 					const signingClient = createWalletClient({
 						account: localAccount,
@@ -387,8 +359,7 @@ export function FarcasterMiniappHost({
 						transport: http(soneiumRpc),
 					})
 
-					// The MPC signTransaction internally calls Startale APIs, so
-					// wrap with the fetch proxy to avoid browser CORS.
+					// Wrap with CORS proxy for MPC signing calls.
 					let hash: `0x${string}`
 					try {
 						hash = await withStartaleProxy(() =>
@@ -440,7 +411,7 @@ export function FarcasterMiniappHost({
 		[chain, waitForApproval],
 	)
 
-	// Helper: Create host action handlers (defined inside component because it uses onClose)
+	/** Create host action handlers exposed to the miniapp via Comlink. */
 	const createHostActions = useCallback((
 		targetOrigin: string,
 		postFrameEvent: (event: unknown) => void,
@@ -506,10 +477,7 @@ export function FarcasterMiniappHost({
 		}
 	}, [onClose])
 
-	// ============================================================================
-	// Iframe Communication Setup
-	// ============================================================================
-
+	// Set up Comlink endpoint and expose host API when iframe loads.
 	useEffect(() => {
 		const iframe = iframeRef.current
 		if (!iframe || !targetOrigin || !isAllowed) return
@@ -518,9 +486,6 @@ export function FarcasterMiniappHost({
 		let disposeEndpoint: (() => void) | null = null
 		let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-		// Called when the iframe finishes loading its src.
-		// Before load, contentWindow is at about:blank (parent origin),
-		// so postMessage with the miniapp's targetOrigin would fail.
 		const onIframeLoad = () => {
 			if (disposed) return
 
@@ -535,7 +500,6 @@ export function FarcasterMiniappHost({
 			const hostActions = createHostActions(targetOrigin, postFrameEvent, providerInfo)
 			const host = buildHostObject({ chain, hostActions, handleEip1193Request })
 
-			console.log('[sandbox] expose(host, endpoint) for origin:', targetOrigin)
 			expose(host, endpoint)
 
 			postFrameEvent({ event: 'eip6963:announceProvider', info: providerInfo })
@@ -559,10 +523,6 @@ export function FarcasterMiniappHost({
 			disposeEndpoint?.()
 		}
 	}, [chain, createHostActions, isAllowed, targetOrigin])
-
-	// ============================================================================
-	// Render
-	// ============================================================================
 
 	if (!targetUrl) {
 		return (
