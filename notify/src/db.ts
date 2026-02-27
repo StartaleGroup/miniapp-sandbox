@@ -15,6 +15,7 @@ export function initDb(): Database.Database {
       fid              INTEGER NOT NULL DEFAULT 0,
       token            TEXT NOT NULL UNIQUE,
       notification_url TEXT NOT NULL,
+      miniapp_origin   TEXT NOT NULL DEFAULT '',
       status           TEXT NOT NULL DEFAULT 'active'
                        CHECK(status IN ('active','disabled','removed')),
       created_at       TEXT NOT NULL DEFAULT (datetime('now')),

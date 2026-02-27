@@ -86,7 +86,8 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
 		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-		return (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+		const miniappConfig = manifest as { miniapp?: { webhookUrl?: string } }
+		return miniappConfig?.miniapp?.webhookUrl
 	} catch { /* manifest fetch failed */ }
 	return undefined
 }
@@ -306,7 +307,7 @@ export function FarcasterMiniappHost({
 			try {
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
 				const details = { url: NOTIFICATION_SERVER_URL, token: crypto.randomUUID() }
-				const webhookPayload = { event: 'miniapp_added', notificationDetails: details }
+				const webhookPayload = { event: 'miniapp_added', notificationDetails: details, miniappOrigin: targetOrigin }
 
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
