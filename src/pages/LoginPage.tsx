@@ -11,7 +11,7 @@ export const LoginPage = () => {
 		return <Navigate replace to="/miniapps" />;
 	}
 
-	const startaleConnector = connectors[0];
+	const startaleConnector = connectors[0]!;
 
 	return (
 		<div className="flex flex-1 items-center justify-center p-8">
@@ -24,8 +24,13 @@ export const LoginPage = () => {
 					type="button"
 					disabled={isPending}
 					onClick={() => connect({ connector: startaleConnector })}
-					className="rounded-xl bg-violet-600 px-8 py-3 text-lg font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
+					className="flex items-center gap-3 rounded-xl bg-violet-600 px-8 py-3 text-lg font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
 				>
+					<img
+						alt=""
+						src="https://startale.com/image/symbol.png"
+						className="h-6 w-6"
+					/>
 					{isPending ? "Connecting…" : "Connect Wallet"}
 				</button>
 			</div>
