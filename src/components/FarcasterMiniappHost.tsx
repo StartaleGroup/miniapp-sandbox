@@ -7,7 +7,7 @@
  */
 import { expose } from 'comlink'
 import { X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPublicClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
@@ -15,6 +15,7 @@ import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
 
+/** EIP-1193 compliant RPC error. */
 class ProviderRpcError extends Error {
 	code: number
 	details?: string
@@ -25,13 +26,7 @@ class ProviderRpcError extends Error {
 	}
 }
 
-type PendingApproval = {
-	title: string
-	description?: string
-	resolve: () => void
-	reject: (e: Error) => void
-} | null
-
+/** Parse a URL string, returning null on failure. */
 function safeParseUrl(raw: string): URL | null {
 	try {
 		return new URL(raw)
@@ -47,6 +42,7 @@ function safeParseUrl(raw: string): URL | null {
 const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
 const NOTIFY_WEBHOOK_URL = 'http://localhost:3200/webhook'
 
+/** Create EIP-6963 provider metadata. */
 function createProviderInfo() {
 	return {
 		icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHJ4PSI0IiBmaWxsPSIjMTgxODFBIi8+PHBhdGggZD0iTTUgOEg5IiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA1SDExIiBzdHJva2U9IiNGRkYiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNNSA5LjVIMTEiIHN0cm9rZT0iI0ZGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
@@ -56,6 +52,7 @@ function createProviderInfo() {
 	} as const
 }
 
+/** Create the initial Farcaster host context sent to the miniapp. */
 function createHostContext() {
 	return {
 		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
@@ -76,6 +73,7 @@ function createHostContext() {
 	}
 }
 
+/** Create helpers for posting messages to the miniapp iframe. */
 function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	return {
 		postFrameEvent: (event: unknown) => {
@@ -90,10 +88,12 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	}
 }
 
+/** Fetch the webhookUrl from a miniapp's farcaster.json manifest. */
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
 		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
-		return (manifest as { miniapp?: { webhookUrl?: string } })?.miniapp?.webhookUrl
+		const miniappConfig = manifest as { miniapp?: { webhookUrl?: string } }
+		return miniappConfig?.miniapp?.webhookUrl
 	} catch { /* manifest fetch failed */ }
 	return undefined
 }
@@ -173,8 +173,6 @@ export function FarcasterMiniappHost({
 	const publicClient = usePublicClient()
 	const { data: walletClient } = useWalletClient()
 
-	const [pendingApproval, setPendingApproval] = useState<PendingApproval>(null)
-
 	const chain = soneium
 	const targetUrl = useMemo(() => safeParseUrl(src), [src])
 	const targetOrigin = targetUrl?.origin
@@ -186,25 +184,6 @@ export function FarcasterMiniappHost({
 		if (hostOrigin && targetOrigin === hostOrigin) return true
 		return MINIAPP_ALLOWED_ORIGINS.has(targetOrigin)
 	}, [targetOrigin])
-
-	const waitForApproval = useCallback(
-		(approvalTitle: string, description?: string) => {
-			return new Promise<void>((resolve, reject) => {
-				setPendingApproval({ title: approvalTitle, description, resolve, reject })
-			})
-		},
-		[],
-	)
-
-	const approve = useCallback(() => {
-		pendingApproval?.resolve()
-		setPendingApproval(null)
-	}, [pendingApproval])
-
-	const reject = useCallback(() => {
-		pendingApproval?.reject(new Error('User rejected request'))
-		setPendingApproval(null)
-	}, [pendingApproval])
 
 	const handleEip1193Request = useCallback(
 		async (method: string, params: unknown[] | undefined) => {
@@ -257,8 +236,6 @@ export function FarcasterMiniappHost({
 								? p0
 								: ''
 
-					await waitForApproval('Sign message', message || 'Sign a message for this Mini App.')
-
 					return await walletClient.signMessage({
 						message: message.startsWith('0x')
 							? { raw: message as `0x${string}` }
@@ -273,11 +250,6 @@ export function FarcasterMiniappHost({
 					const typedData =
 						typeof raw === 'string' ? JSON.parse(raw) : raw
 
-					await waitForApproval(
-						'Sign typed data',
-						typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2),
-					)
-
 					return await walletClient.signTypedData(typedData)
 				}
 				case 'eth_sendTransaction': {
@@ -289,11 +261,6 @@ export function FarcasterMiniappHost({
 						| undefined
 
 					if (!tx?.to) throw new ProviderRpcError(32_602, 'Missing to')
-
-					await waitForApproval(
-						'Approve transaction',
-						JSON.stringify(tx, null, 2),
-					)
 
 					const hash = await walletClient.sendTransaction({
 						to: tx.to as `0x${string}`,
@@ -333,7 +300,7 @@ export function FarcasterMiniappHost({
 				}
 			}
 		},
-		[address, walletClient, chain, publicClient, waitForApproval],
+		[address, walletClient, chain, publicClient],
 	)
 
 	// Helper: Create host action handlers (defined inside component because it uses onClose)
@@ -346,7 +313,7 @@ export function FarcasterMiniappHost({
 			try {
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
 				const details = { url: NOTIFICATION_SERVER_URL, token: crypto.randomUUID() }
-				const webhookPayload = { event: 'miniapp_added', notificationDetails: details }
+				const webhookPayload = { event: 'miniapp_added', notificationDetails: details, miniappOrigin: targetOrigin }
 
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
@@ -512,43 +479,6 @@ export function FarcasterMiniappHost({
 					/>
 				</div>
 			</div>
-
-			{/* Approval dialog */}
-			{pendingApproval && (
-				<div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60">
-					<div className="w-full max-w-md rounded-2xl bg-white p-8">
-						<h2 className="text-center font-semibold text-2xl text-zinc-950">
-							{pendingApproval.title}
-						</h2>
-						<p className="mt-2 text-center text-sm text-zinc-500">
-							Review and approve this request from the Mini App.
-						</p>
-						{pendingApproval.description && (
-							<div className="mt-4 max-h-56 overflow-auto rounded-xl bg-zinc-50 p-4">
-								<pre className="whitespace-pre-wrap break-all text-sm text-zinc-900">
-									{pendingApproval.description}
-								</pre>
-							</div>
-						)}
-						<div className="mt-6 flex gap-4">
-							<button
-								className="h-12 flex-1 rounded-full border border-zinc-200 bg-white font-medium text-zinc-900 hover:bg-zinc-50"
-								onClick={reject}
-								type="button"
-							>
-								Cancel
-							</button>
-							<button
-								className="h-12 flex-1 rounded-full bg-violet-600 font-medium text-white hover:bg-violet-700"
-								onClick={approve}
-								type="button"
-							>
-								Approve
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
 		</div>
 	)
 }

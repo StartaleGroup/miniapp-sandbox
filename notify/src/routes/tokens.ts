@@ -4,6 +4,7 @@ import type { TokenRecord } from '../types.js'
 
 export const tokensRoute = new Hono()
 
+/** List notification tokens, optionally filtered by status or fid. */
 tokensRoute.get('/', (c) => {
   const db = getDb()
   const status = c.req.query('status')

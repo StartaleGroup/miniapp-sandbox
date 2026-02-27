@@ -5,6 +5,7 @@ import { cn } from "~/lib/utils";
 import { useAccount } from "wagmi";
 import { NotificationBell } from "./NotificationPanel";
 
+/** Sidebar navigation with logo, miniapps link, and notifications. */
 export const Sidebar = () => {
 	const { isConnected } = useAccount();
 

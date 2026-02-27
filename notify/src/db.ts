@@ -5,6 +5,7 @@ import { config } from './config.js'
 
 let db: Database.Database
 
+/** Initialize SQLite database and create the notification_tokens table. */
 export function initDb(): Database.Database {
   fs.mkdirSync(path.dirname(config.dbPath), { recursive: true })
   db = new Database(config.dbPath)
@@ -15,6 +16,7 @@ export function initDb(): Database.Database {
       fid              INTEGER NOT NULL DEFAULT 0,
       token            TEXT NOT NULL UNIQUE,
       notification_url TEXT NOT NULL,
+      miniapp_origin   TEXT NOT NULL DEFAULT '',
       status           TEXT NOT NULL DEFAULT 'active'
                        CHECK(status IN ('active','disabled','removed')),
       created_at       TEXT NOT NULL DEFAULT (datetime('now')),
@@ -28,6 +30,7 @@ export function initDb(): Database.Database {
   return db
 }
 
+/** Return the initialized database instance. */
 export function getDb(): Database.Database {
   if (!db) throw new Error('Database not initialized. Call initDb() first.')
   return db

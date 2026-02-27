@@ -13,6 +13,7 @@ const SendNotificationSchema = z.object({
 
 export const ingestRoute = new Hono()
 
+/** Validate tokens and broadcast notification to SSE clients. Farcaster-compatible endpoint. */
 ingestRoute.post('/', async (c) => {
   const parsed = SendNotificationSchema.safeParse(await c.req.json())
   if (!parsed.success) {

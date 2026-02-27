@@ -7,6 +7,7 @@ import { MiniAppsPage } from "~/pages/MiniAppsPage";
 import { NotificationProvider } from "~/providers/NotificationProvider";
 import { WalletProvider } from "~/providers/WalletProvider";
 
+/** Root application component with routing and providers. */
 export const App = () => {
 	return (
 		<WalletProvider>

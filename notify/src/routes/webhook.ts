@@ -11,16 +11,20 @@ const WebhookEventSchema = z.discriminatedUnion('event', [
   z.object({
     event: z.literal('miniapp_added'),
     notificationDetails: NotificationDetailsSchema.optional(),
+    miniappOrigin: z.string().optional(),
   }),
   z.object({
     event: z.literal('miniapp_removed'),
+    miniappOrigin: z.string().optional(),
   }),
   z.object({
     event: z.literal('notifications_enabled'),
     notificationDetails: NotificationDetailsSchema,
+    miniappOrigin: z.string().optional(),
   }),
   z.object({
     event: z.literal('notifications_disabled'),
+    miniappOrigin: z.string().optional(),
   }),
 ])
 
@@ -32,6 +36,7 @@ const JfsSchema = z.object({
 
 export const webhookRoute = new Hono()
 
+/** Handle miniapp lifecycle events (added, removed, notifications enabled/disabled). */
 webhookRoute.post('/', async (c) => {
   const body = await c.req.json()
 
@@ -70,6 +75,7 @@ webhookRoute.post('/', async (c) => {
 
   const event = parsed.data
   const db = getDb()
+  const miniappOrigin = ('miniappOrigin' in event ? event.miniappOrigin : undefined) ?? ''
 
   switch (event.event) {
     case 'miniapp_added':
@@ -77,35 +83,35 @@ webhookRoute.post('/', async (c) => {
       if (!event.notificationDetails) break
       const { url, token } = event.notificationDetails
 
-      // Deactivate any existing tokens for this fid, then insert a new active one
+      // Deactivate previous tokens for this fid+miniapp pair before inserting new one
       db.prepare(
-        `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ?`,
-      ).run(fid)
+        `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ? AND miniapp_origin = ?`,
+      ).run(fid, miniappOrigin)
       db.prepare(
         `
-        INSERT INTO notification_tokens (fid, token, notification_url, status, updated_at)
-        VALUES (?, ?, ?, 'active', datetime('now'))
+        INSERT INTO notification_tokens (fid, token, notification_url, miniapp_origin, status, updated_at)
+        VALUES (?, ?, ?, ?, 'active', datetime('now'))
       `,
-      ).run(fid, token, url)
+      ).run(fid, token, url, miniappOrigin)
 
       console.log(
-        `  \x1b[32m✓ WEBHOOK\x1b[0m ${event.event} — fid=${fid} token=${token.slice(0, 8)}… url=${url}`,
+        `  \x1b[32m✓ WEBHOOK\x1b[0m ${event.event} — fid=${fid} origin=${miniappOrigin} token=${token.slice(0, 8)}… url=${url}`,
       )
       break
     }
     case 'miniapp_removed': {
       db.prepare(
-        `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ?`,
-      ).run(fid)
-      console.log(`  \x1b[33m✓ WEBHOOK\x1b[0m miniapp_removed — fid=${fid}`)
+        `UPDATE notification_tokens SET status = 'removed', updated_at = datetime('now') WHERE fid = ? AND miniapp_origin = ?`,
+      ).run(fid, miniappOrigin)
+      console.log(`  \x1b[33m✓ WEBHOOK\x1b[0m miniapp_removed — fid=${fid} origin=${miniappOrigin}`)
       break
     }
     case 'notifications_disabled': {
       db.prepare(
-        `UPDATE notification_tokens SET status = 'disabled', updated_at = datetime('now') WHERE fid = ?`,
-      ).run(fid)
+        `UPDATE notification_tokens SET status = 'disabled', updated_at = datetime('now') WHERE fid = ? AND miniapp_origin = ?`,
+      ).run(fid, miniappOrigin)
       console.log(
-        `  \x1b[33m✓ WEBHOOK\x1b[0m notifications_disabled — fid=${fid}`,
+        `  \x1b[33m✓ WEBHOOK\x1b[0m notifications_disabled — fid=${fid} origin=${miniappOrigin}`,
       )
       break
     }

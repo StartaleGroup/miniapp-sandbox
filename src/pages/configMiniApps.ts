@@ -13,7 +13,6 @@ export const MINI_APPS: MiniAppConfig[] = [
 		id: 'inking',
 		name: 'Inking',
 		description: 'Client side demo of minting and notifications (no backend)',
-		// url: 'https://inking-farcaster-miniapp.vercel.app/',
 		url: 'http://localhost:5173/',
 		imageUrl: 'http://localhost:5173/preview.svg',
 		category: 'NFT',

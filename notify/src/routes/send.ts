@@ -13,6 +13,7 @@ const SendRequestSchema = z.object({
 
 export const sendRoute = new Hono()
 
+/** Send a notification to active tokens, optionally filtered by fid. */
 sendRoute.post('/', async (c) => {
   const parsed = SendRequestSchema.safeParse(await c.req.json())
   if (!parsed.success) {
