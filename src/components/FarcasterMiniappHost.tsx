@@ -53,9 +53,10 @@ function createProviderInfo() {
 }
 
 /** Create the initial Farcaster host context sent to the miniapp. */
-function createHostContext() {
+function createHostContext(address: string | undefined) {
+	const seed = address ?? 'george'
 	return {
-		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
+		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: `https://robohash.org/${seed}?size=200x200` },
 		location: { type: 'launcher' as const },
 		client: {
 			platformType: 'web' as const,
@@ -382,13 +383,22 @@ export function FarcasterMiniappHost({
 		let timeoutId: ReturnType<typeof setTimeout> | null = null
 
 		// Called when the iframe finishes loading its src.
-		// Before load, contentWindow is at about:blank (parent origin),
-		// so postMessage with the miniapp's targetOrigin would fail.
+		// The load event also fires for the initial about:blank (e.g. when the src fails
+		// to load due to connection refused). In that case the iframe's origin is null/opaque
+		// and postMessage with targetOrigin would throw. Skip until the real content loads.
 		const onIframeLoad = () => {
 			if (disposed) return
 
 			const iframeWindow = iframe.contentWindow
 			if (!iframeWindow) return
+
+			// Check if the iframe is still at about:blank (failed or not-yet-loaded src).
+			// For a cross-origin src that loaded correctly, accessing location.href throws.
+			try {
+				if (iframeWindow.location.href === 'about:blank') return
+			} catch {
+				// Cross-origin content loaded — proceed normally.
+			}
 
 			const { endpoint, dispose } = createSecureIframeEndpoint({ iframeWindow, targetOrigin })
 			disposeEndpoint = dispose

@@ -94,6 +94,7 @@ export const MiniAppsPage = () => {
 												src={app.imageUrl}
 												alt={app.name}
 												className="h-full w-full object-cover"
+												onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none' }}
 											/>
 										</div>
 									)}
