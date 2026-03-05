@@ -53,9 +53,10 @@ function createProviderInfo() {
 }
 
 /** Create the initial Farcaster host context sent to the miniapp. */
-function createHostContext() {
+function createHostContext(address: string | undefined) {
+	const seed = address ?? 'george'
 	return {
-		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: "http://localhost:3100/george.png" },
+		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: `https://robohash.org/${seed}?size=200x200` },
 		location: { type: 'launcher' as const },
 		client: {
 			platformType: 'web' as const,
