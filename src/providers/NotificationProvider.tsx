@@ -7,6 +7,7 @@ import {
 	useState,
 	type ReactNode,
 } from 'react'
+import { logNotify } from '~/lib/logger'
 
 export interface Notification {
 	notificationId: string
@@ -73,14 +74,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 	const eventSourceRef = useRef<EventSource | null>(null)
 
 	useEffect(() => {
+		logNotify('SSE connect', NOTIFY_EVENTS_URL)
 		const es = new EventSource(NOTIFY_EVENTS_URL)
 		eventSourceRef.current = es
+
+		es.addEventListener('connected', (e) => {
+			logNotify('SSE connected', e.data)
+		})
 
 		es.addEventListener('notification', (e) => {
 			try {
 				const data = JSON.parse(e.data) as Notification
+				logNotify('← SSE notification event', data)
 				// Enrich notification with iconUrl from manifest
 				enrichNotificationWithIcon(data).then((enrichedData) => {
+					logNotify('notification enriched', `iconUrl=${enrichedData.iconUrl ?? '(none)'} title="${enrichedData.title}"`)
 					setNotifications((prev) => [enrichedData, ...prev])
 					setUnreadCount((prev) => prev + 1)
 				})
@@ -89,11 +97,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 			}
 		})
 
-		es.onerror = () => {
-			// EventSource auto-reconnects; nothing to do
+		es.onerror = (e) => {
+			logNotify('SSE error / reconnecting', e)
 		}
 
 		return () => {
+			logNotify('SSE disconnect', NOTIFY_EVENTS_URL)
 			es.close()
 			eventSourceRef.current = null
 		}
