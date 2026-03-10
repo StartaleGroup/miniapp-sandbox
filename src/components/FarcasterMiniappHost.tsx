@@ -12,6 +12,7 @@ import { createPublicClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
+import { logFarcaster, logNotify } from '~/lib/logger'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
 
@@ -78,9 +79,11 @@ function createHostContext(address: string | undefined) {
 function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	return {
 		postFrameEvent: (event: unknown) => {
+			logFarcaster('→ postMessage frameEvent', event)
 			iframeWindow.postMessage({ type: 'frameEvent', event }, targetOrigin)
 		},
 		postEthProviderEvent: (event: string, params: unknown[]) => {
+			logFarcaster('→ postMessage ethProviderEvent', { event, params })
 			iframeWindow.postMessage(
 				{ type: 'frameEthProviderEvent', event, params },
 				targetOrigin,
@@ -92,10 +95,15 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 /** Fetch the webhookUrl from a miniapp's farcaster.json manifest. */
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
+		logNotify('fetching manifest', `${targetOrigin}/.well-known/farcaster.json`)
 		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
 		const miniappConfig = manifest as { miniapp?: { webhookUrl?: string } }
-		return miniappConfig?.miniapp?.webhookUrl
-	} catch { /* manifest fetch failed */ }
+		const webhookUrl = miniappConfig?.miniapp?.webhookUrl
+		logNotify('manifest webhookUrl', webhookUrl ?? '(none)')
+		return webhookUrl
+	} catch (err) {
+		logNotify('manifest fetch failed', err)
+	}
 	return undefined
 }
 
@@ -112,22 +120,34 @@ function buildHostObject({
 	return {
 		context: createHostContext(),
 
-		getCapabilities: () =>
-			Promise.resolve([
+		getCapabilities: () => {
+			logFarcaster('← getCapabilities', '(called by miniapp)')
+			const caps = [
 				'wallet.getEthereumProvider',
 				'actions.addMiniApp',
 				'actions.ready',
 				'actions.openUrl',
 				'actions.close',
-			]),
-		getChains: () => Promise.resolve([`eip155:${chain.id}`]),
+			]
+			logFarcaster('→ getCapabilities', caps)
+			return Promise.resolve(caps)
+		},
+
+		getChains: () => {
+			const chains = [`eip155:${chain.id}`]
+			logFarcaster('← getChains', chains)
+			return Promise.resolve(chains)
+		},
 
 		ethProviderRequest: async (request: unknown) => {
 			const record = request as Record<string, unknown> | null
 			const method = (record?.method as string | undefined) ?? undefined
 			const params = (record?.params as unknown[] | undefined) ?? []
+			logFarcaster('← ethProviderRequest', { method, params })
 			if (!method) throw new ProviderRpcError(32_602, 'Missing method')
-			return await handleEip1193Request(method, params)
+			const result = await handleEip1193Request(method, params)
+			logFarcaster('→ ethProviderRequest', { method, result })
+			return result
 		},
 
 		ethProviderRequestV2: async (request: unknown) => {
@@ -135,20 +155,26 @@ function buildHostObject({
 			const id = record?.id as unknown
 			const method = (record?.method as string | undefined) ?? undefined
 			const params = (record?.params as unknown[] | undefined) ?? []
+			logFarcaster('← ethProviderRequestV2', { id, method, params })
 			if (!method) {
-				return { jsonrpc: '2.0', id, error: { code: 32_602, message: 'Missing method' } }
+				const errResponse = { jsonrpc: '2.0', id, error: { code: 32_602, message: 'Missing method' } }
+				logFarcaster('→ ethProviderRequestV2 error', errResponse)
+				return errResponse
 			}
 			try {
 				const result = await handleEip1193Request(method, params)
+				logFarcaster('→ ethProviderRequestV2', { id, method, result })
 				return { jsonrpc: '2.0', id, result }
 			} catch (e) {
 				const err = e instanceof ProviderRpcError
 					? e
 					: new ProviderRpcError(4001, e instanceof Error ? e.message : 'Error')
-				return {
+				const errResponse = {
 					jsonrpc: '2.0', id,
 					error: { code: err.code, message: err.message, details: err.details },
 				}
+				logFarcaster('→ ethProviderRequestV2 error', errResponse)
+				return errResponse
 			}
 		},
 
@@ -188,6 +214,7 @@ export function FarcasterMiniappHost({
 
 	const handleEip1193Request = useCallback(
 		async (method: string, params: unknown[] | undefined) => {
+			logFarcaster('EIP-1193 request', { method, params })
 			switch (method) {
 				case 'wallet_switchEthereumChain': {
 					const p0 = params?.[0] as Record<string, unknown> | undefined
@@ -196,8 +223,10 @@ export function FarcasterMiniappHost({
 						chainIdHex &&
 						chainIdHex.toLowerCase() === `0x${chain.id.toString(16)}`.toLowerCase()
 					) {
+						logFarcaster('wallet_switchEthereumChain', `already on chain ${chain.id} — ok`)
 						return null
 					}
+					logFarcaster('wallet_switchEthereumChain', `rejected: only Soneium (${chain.id}) supported`)
 					throw new ProviderRpcError(
 						4200,
 						'Startale currently supports Soneium only (cannot switch chains from a Mini App).',
@@ -210,18 +239,26 @@ export function FarcasterMiniappHost({
 						chainIdHex &&
 						chainIdHex.toLowerCase() === `0x${chain.id.toString(16)}`.toLowerCase()
 					) {
+						logFarcaster('wallet_addEthereumChain', `Soneium already supported — ok`)
 						return null
 					}
+					logFarcaster('wallet_addEthereumChain', `rejected: only Soneium supported`)
 					throw new ProviderRpcError(
 						4200,
 						'Startale currently supports Soneium only (cannot add/switch chains from a Mini App).',
 					)
 				}
-				case 'eth_chainId':
-					return `0x${chain.id.toString(16)}`
+				case 'eth_chainId': {
+					const chainId = `0x${chain.id.toString(16)}`
+					logFarcaster('eth_chainId', chainId)
+					return chainId
+				}
 				case 'eth_accounts':
-				case 'eth_requestAccounts':
-					return address ? [address] : []
+				case 'eth_requestAccounts': {
+					const accounts = address ? [address] : []
+					logFarcaster(method, accounts)
+					return accounts
+				}
 				case 'personal_sign': {
 					if (!address || !walletClient)
 						throw new ProviderRpcError(4001, 'Wallet not connected')
@@ -237,21 +274,25 @@ export function FarcasterMiniappHost({
 								? p0
 								: ''
 
-					return await walletClient.signMessage({
+					logFarcaster('personal_sign', { message: message.slice(0, 80), address })
+					const sig = await walletClient.signMessage({
 						message: message.startsWith('0x')
 							? { raw: message as `0x${string}` }
 							: message,
 					})
+					logFarcaster('personal_sign result', sig.slice(0, 20) + '…')
+					return sig
 				}
 				case 'eth_signTypedData_v4': {
 					if (!address || !walletClient)
 						throw new ProviderRpcError(4001, 'Wallet not connected')
 
 					const raw = params?.[1]
-					const typedData =
-						typeof raw === 'string' ? JSON.parse(raw) : raw
-
-					return await walletClient.signTypedData(typedData)
+					const typedData = typeof raw === 'string' ? JSON.parse(raw) : raw
+					logFarcaster('eth_signTypedData_v4', { address, typedData })
+					const sig = await walletClient.signTypedData(typedData)
+					logFarcaster('eth_signTypedData_v4 result', sig.slice(0, 20) + '…')
+					return sig
 				}
 				case 'eth_sendTransaction': {
 					if (!address || !walletClient)
@@ -263,18 +304,21 @@ export function FarcasterMiniappHost({
 
 					if (!tx?.to) throw new ProviderRpcError(32_602, 'Missing to')
 
+					logFarcaster('eth_sendTransaction', tx)
 					const hash = await walletClient.sendTransaction({
 						to: tx.to as `0x${string}`,
 						data: (tx.data as `0x${string}` | undefined) ?? undefined,
 						value: tx.value ? BigInt(tx.value) : 0n,
 						chain,
 					})
+					logFarcaster('eth_sendTransaction hash', hash)
 
 					const client =
 						publicClient ??
 						createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) })
 
 					const receipt = await client.waitForTransactionReceipt({ hash })
+					logFarcaster('eth_sendTransaction receipt', { status: receipt.status, hash })
 					if (receipt.status === 'reverted') {
 						throw new ProviderRpcError(4001, 'Transaction reverted')
 					}
@@ -285,17 +329,22 @@ export function FarcasterMiniappHost({
 						method.startsWith('wallet_') ||
 						method.startsWith('personal_')
 					) {
+						logFarcaster(`${method}`, 'unsupported — rejected')
 						throw new ProviderRpcError(4200, `Unsupported method: ${method}`)
 					}
 					try {
+						logFarcaster(`${method}`, 'forwarding to public client')
 						const client =
 							publicClient ??
 							createPublicClient({ chain, transport: http(chain.rpcUrls.default.http[0]) })
-						return await client.request({
+						const result = await client.request({
 							method: method as never,
 							params: (params ?? []) as never,
 						})
+						logFarcaster(`${method} result`, result)
+						return result
 					} catch {
+						logFarcaster(`${method}`, 'public client failed — unsupported')
 						throw new ProviderRpcError(4200, `Unsupported method: ${method}`)
 					}
 				}
@@ -311,30 +360,43 @@ export function FarcasterMiniappHost({
 		providerInfo: ReturnType<typeof createProviderInfo>,
 	) => {
 		const addMiniAppImpl = async () => {
+			logFarcaster('← addMiniApp', `origin=${targetOrigin}`)
 			try {
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
 				const details = { url: NOTIFICATION_SERVER_URL, token: crypto.randomUUID() }
 				const webhookPayload = { event: 'miniapp_added', notificationDetails: details, miniappOrigin: targetOrigin }
 
+				logFarcaster('addMiniApp: notificationDetails', details)
+				logFarcaster('addMiniApp: postFrameEvent', { event: 'miniapp_added', notificationDetails: details })
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
+				logNotify(`→ POST ${NOTIFY_WEBHOOK_URL}`, webhookPayload)
 				fetch(NOTIFY_WEBHOOK_URL, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify(webhookPayload),
-				}).catch((err) => console.error('[HOST] webhook error:', err))
+				})
+					.then(r => logNotify(`← notify webhook response`, `HTTP ${r.status}`))
+					.catch((err) => logNotify('notify webhook error', err))
 
 				if (webhookUrl) {
+					logNotify(`→ POST miniapp webhook ${webhookUrl}`, webhookPayload)
 					fetch(webhookUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify(webhookPayload),
-					}).catch((err) => console.error('[HOST] Miniapp webhook error:', err))
+					})
+						.then(r => logNotify(`← miniapp webhook response`, `HTTP ${r.status}`))
+						.catch((err) => logNotify('miniapp webhook error', err))
+				} else {
+					logNotify('miniapp webhook', 'no webhookUrl in manifest — skipped')
 				}
 
-				return { result: { notificationDetails: details } }
+				const result = { result: { notificationDetails: details } }
+				logFarcaster('→ addMiniApp result', result)
+				return result
 			} catch (error) {
-				console.error('[HOST] addMiniApp error:', error)
+				logFarcaster('addMiniApp error', error)
 				throw error
 			}
 		}
@@ -342,29 +404,56 @@ export function FarcasterMiniappHost({
 		return {
 			addMiniApp: addMiniAppImpl,
 			addFrame: addMiniAppImpl,
-			ready: () => {},
-			close: () => onClose?.(),
-			openUrl: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
-			signIn: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
-			signManifest: () => Promise.resolve({ error: { type: 'rejected_by_user' } }),
-			viewCast: () => {},
-			viewProfile: () => {},
-			openMiniApp: () => {},
-			composeCast: () => ({ cast: null }),
-			viewToken: () => {},
-			sendToken: () => Promise.resolve({
-				success: false, reason: 'send_failed',
-				error: { error: 'not_supported', message: 'Not supported in sandbox' },
-			}),
-			swapToken: () => Promise.resolve({
-				success: false, reason: 'swap_failed',
-				error: { error: 'not_supported', message: 'Not supported in sandbox' },
-			}),
-			requestCameraAndMicrophoneAccess: () => Promise.resolve(),
-			impactOccurred: () => undefined,
-			notificationOccurred: () => undefined,
-			selectionChanged: () => undefined,
+			ready: () => {
+				logFarcaster('← ready', `origin=${targetOrigin}`)
+			},
+			close: () => {
+				logFarcaster('← close', `origin=${targetOrigin}`)
+				onClose?.()
+			},
+			openUrl: (url: string) => {
+				logFarcaster('← openUrl', url)
+				window.open(url, '_blank', 'noopener,noreferrer')
+			},
+			signIn: () => {
+				logFarcaster('← signIn', 'rejected_by_user')
+				return Promise.resolve({ error: { type: 'rejected_by_user' } })
+			},
+			signManifest: () => {
+				logFarcaster('← signManifest', 'rejected_by_user')
+				return Promise.resolve({ error: { type: 'rejected_by_user' } })
+			},
+			viewCast: () => { logFarcaster('← viewCast', '(noop)') },
+			viewProfile: () => { logFarcaster('← viewProfile', '(noop)') },
+			openMiniApp: () => { logFarcaster('← openMiniApp', '(noop)') },
+			composeCast: () => {
+				logFarcaster('← composeCast', '(noop)')
+				return ({ cast: null })
+			},
+			viewToken: () => { logFarcaster('← viewToken', '(noop)') },
+			sendToken: () => {
+				logFarcaster('← sendToken', 'not_supported')
+				return Promise.resolve({
+					success: false, reason: 'send_failed',
+					error: { error: 'not_supported', message: 'Not supported in sandbox' },
+				})
+			},
+			swapToken: () => {
+				logFarcaster('← swapToken', 'not_supported')
+				return Promise.resolve({
+					success: false, reason: 'swap_failed',
+					error: { error: 'not_supported', message: 'Not supported in sandbox' },
+				})
+			},
+			requestCameraAndMicrophoneAccess: () => {
+				logFarcaster('← requestCameraAndMicrophoneAccess', '(delegating to browser)')
+				return Promise.resolve()
+			},
+			impactOccurred: () => { logFarcaster('← impactOccurred', '(haptics noop)') },
+			notificationOccurred: () => { logFarcaster('← notificationOccurred', '(haptics noop)') },
+			selectionChanged: () => { logFarcaster('← selectionChanged', '(haptics noop)') },
 			eip6963RequestProvider: () => {
+				logFarcaster('← eip6963RequestProvider', 'announcing provider')
 				postFrameEvent({ event: 'eip6963:announceProvider', info: providerInfo })
 			},
 		}
@@ -377,6 +466,8 @@ export function FarcasterMiniappHost({
 	useEffect(() => {
 		const iframe = iframeRef.current
 		if (!iframe || !targetOrigin || !isAllowed) return
+
+		logFarcaster('host init', `src=${src} origin=${targetOrigin}`)
 
 		let disposed = false
 		let disposeEndpoint: (() => void) | null = null
@@ -391,24 +482,34 @@ export function FarcasterMiniappHost({
 			const iframeWindow = iframe.contentWindow
 			if (!iframeWindow) return
 
+			logFarcaster('iframe loaded', `src=${src}`)
+
 			const { endpoint, dispose } = createSecureIframeEndpoint({ iframeWindow, targetOrigin })
 			disposeEndpoint = dispose
 
 			const providerInfo = createProviderInfo()
+			logFarcaster('provider info', { name: providerInfo.name, rdns: providerInfo.rdns })
+
 			const { postFrameEvent, postEthProviderEvent } = createMessagePoster(iframeWindow, targetOrigin)
 			const hostActions = createHostActions(targetOrigin, postFrameEvent, providerInfo)
 			const host = buildHostObject({ chain, hostActions, handleEip1193Request })
 
 			expose(host, endpoint)
+			logFarcaster('comlink host exposed', 'ready for miniapp calls')
 
+			logFarcaster('→ eip6963:announceProvider', providerInfo.name)
 			postFrameEvent({ event: 'eip6963:announceProvider', info: providerInfo })
 
 			timeoutId = setTimeout(() => {
 				if (disposed) return
-				postEthProviderEvent('chainChanged', [`0x${chain.id.toString(16)}`])
+				const chainIdHex = `0x${chain.id.toString(16)}`
+				logFarcaster('→ chainChanged', chainIdHex)
+				postEthProviderEvent('chainChanged', [chainIdHex])
+				logFarcaster('→ accountsChanged', address ? [address] : [])
 				postEthProviderEvent('accountsChanged', [address ? [address] : []])
 				if (address) {
-					postEthProviderEvent('connect', [{ chainId: `0x${chain.id.toString(16)}` }])
+					logFarcaster('→ connect', { chainId: chainIdHex })
+					postEthProviderEvent('connect', [{ chainId: chainIdHex }])
 				}
 			}, 500)
 		}
@@ -417,11 +518,12 @@ export function FarcasterMiniappHost({
 
 		return () => {
 			disposed = true
+			logFarcaster('host teardown', `origin=${targetOrigin}`)
 			iframe.removeEventListener('load', onIframeLoad)
 			if (timeoutId) clearTimeout(timeoutId)
 			disposeEndpoint?.()
 		}
-	}, [address, chain, createHostActions, handleEip1193Request, isAllowed, targetOrigin])
+	}, [address, chain, createHostActions, handleEip1193Request, isAllowed, src, targetOrigin])
 
 	// ============================================================================
 	// Render

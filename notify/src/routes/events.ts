@@ -1,12 +1,13 @@
 import { Hono } from 'hono'
-import { addClient, removeClient } from '../sse.js'
+import { logNotify } from '../logger.js'
+import { addClient, getClientCount, removeClient } from '../sse.js'
 
 export const eventsRoute = new Hono()
 
 /** SSE endpoint that streams real-time notifications to connected clients. */
 eventsRoute.get('/', (c) => {
   const clientId = crypto.randomUUID()
-  console.log(`  \x1b[35m✓ SSE_EVENTS\x1b[0m Client connected: ${clientId}`)
+  logNotify('SSE client connected', `id=${clientId} total=${getClientCount() + 1}`)
 
   const stream = new ReadableStream({
     start(controller) {
@@ -15,10 +16,11 @@ eventsRoute.get('/', (c) => {
       // Send initial connection event
       const msg = `event: connected\ndata: ${JSON.stringify({ clientId })}\n\n`
       controller.enqueue(new TextEncoder().encode(msg))
+      logNotify('SSE initial event sent', `event=connected clientId=${clientId}`)
     },
     cancel() {
-      console.log(`  \x1b[90m✗ SSE_EVENTS\x1b[0m Client disconnected: ${clientId}`)
       removeClient(clientId)
+      logNotify('SSE client disconnected', `id=${clientId} remaining=${getClientCount()}`)
     },
   })
 

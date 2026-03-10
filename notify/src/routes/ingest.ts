@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { getDb } from '../db.js'
-import { broadcast } from '../sse.js'
+import { logNotify } from '../logger.js'
+import { broadcast, getClientCount } from '../sse.js'
 
 const SendNotificationSchema = z.object({
   notificationId: z.string().max(128),
@@ -15,12 +16,18 @@ export const ingestRoute = new Hono()
 
 /** Validate tokens and broadcast notification to SSE clients. Farcaster-compatible endpoint. */
 ingestRoute.post('/', async (c) => {
-  const parsed = SendNotificationSchema.safeParse(await c.req.json())
+  const rawBody = await c.req.json()
+  logNotify('← request received', JSON.stringify(rawBody).slice(0, 300))
+
+  const parsed = SendNotificationSchema.safeParse(rawBody)
   if (!parsed.success) {
+    logNotify('validation error', parsed.error.issues)
     return c.json({ error: 'Invalid request', details: parsed.error.issues }, 400)
   }
 
   const { notificationId, title, body, targetUrl, tokens } = parsed.data
+  logNotify('parsed', `id=${notificationId} title="${title}" tokens=${tokens.length}`)
+
   const db = getDb()
 
   const successfulTokens: string[] = []
@@ -31,6 +38,9 @@ ingestRoute.post('/', async (c) => {
       .prepare(`SELECT status FROM notification_tokens WHERE token = ?`)
       .get(token) as { status: string } | undefined
 
+    const status = row?.status ?? 'unknown'
+    logNotify('token check', `${token.slice(0, 8)}… → ${status}`)
+
     if (row?.status === 'active') {
       successfulTokens.push(token)
     } else {
@@ -38,15 +48,12 @@ ingestRoute.post('/', async (c) => {
     }
   }
 
-  if (successfulTokens.length > 0) {
-    console.log(
-      `  \x1b[36m✓ NOTIFICATION_INGEST\x1b[0m "${title}" — ${body}` +
-        `\n    targetUrl: ${targetUrl}` +
-        `\n    id: ${notificationId}` +
-        `\n    tokens: ${successfulTokens.length} ok, ${invalidTokens.length} invalid`,
-    )
+  logNotify('token validation result', `${successfulTokens.length} valid, ${invalidTokens.length} invalid`)
 
-    // Broadcast to SSE clients (sandbox UI)
+  if (successfulTokens.length > 0) {
+    logNotify('broadcast', `"${title}" — ${body}`)
+    logNotify('broadcast details', `targetUrl=${targetUrl} id=${notificationId} sseClients=${getClientCount()}`)
+
     broadcast('notification', {
       notificationId,
       title,
@@ -54,13 +61,19 @@ ingestRoute.post('/', async (c) => {
       targetUrl,
       timestamp: new Date().toISOString(),
     })
+
+    logNotify('broadcast sent', `SSE event dispatched to ${getClientCount()} client(s)`)
+  } else {
+    logNotify('broadcast skipped', 'no valid tokens')
   }
 
-  return c.json({
+  const response = {
     result: {
       successfulTokens,
       invalidTokens,
       rateLimitedTokens: [],
     },
-  })
+  }
+  logNotify('→ response', JSON.stringify(response))
+  return c.json(response)
 })

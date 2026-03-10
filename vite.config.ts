@@ -44,5 +44,6 @@ export default defineConfig({
 		alias: {
 			"~": resolve(__dirname, "src"),
 		},
+		dedupe: ["wagmi", "@wagmi/core", "viem", "react", "react-dom"],
 	},
 });
