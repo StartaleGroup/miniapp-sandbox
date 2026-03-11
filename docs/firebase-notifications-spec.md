@@ -167,6 +167,7 @@ startale-notifications/
 │   │   │   ├── webhook.ts         # POST /webhook — lifecycle events
 │   │   │   ├── ingest.ts          # POST /api/miniapps-notifications
 │   │   │   ├── send.ts            # POST /send — convenience batch send
+│   │   │   ├── platformBroadcast.ts  # POST /platform-broadcast — notify all platform users
 │   │   │   ├── health.ts          # GET /health
 │   │   │   └── tokens.ts          # GET /tokens — admin inspection
 │   │   ├── services/
@@ -175,7 +176,7 @@ startale-notifications/
 │   │   │   ├── deduplication.ts   # notificationId dedup (24h window)
 │   │   │   └── webhookAuth.ts      # Webhook request authentication
 │   │   ├── middleware/
-│   │   │   ├── auth.ts            # API key validation for /send and /tokens
+│   │   │   ├── auth.ts            # API key validation for /webhook, /send, /platform-broadcast, /tokens
 │   │   │   └── cors.ts            # CORS configuration
 │   │   └── types.ts               # Shared TypeScript types
 │   └── .env.example               # template for secrets
@@ -261,6 +262,20 @@ Document ID: auto-generated
 - `token` (unique — enforced via a separate `tokenLookup/{token}` doc pattern or query)
 - Composite: `(userAddress, miniappOrigin, status)` — for lifecycle upserts
 - Composite: `(status, miniappOrigin)` — for batch send queries
+
+### Collection: `users`
+
+Document ID: `{userAddress}`
+
+```ts
+{
+  userAddress: string;           // user's smart account address
+  firstSeenAt: Timestamp;        // when this user first added any mini app
+  lastActiveAt: Timestamp;       // updated on each miniapp_added event
+}
+```
+
+Upserted during `miniapp_added` webhook processing. See [Platform Broadcast](#platform-broadcast-notify-all-users) for details.
 
 ### Collection: `rateLimits`
 
@@ -556,6 +571,15 @@ Create 3 separate Firebase projects:
       "fields": [
         { "fieldPath": "token", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "tokens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userAddress", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
@@ -738,6 +762,7 @@ import { apiKey } from "./config";
 import { webhookRoute } from "./routes/webhook";
 import { ingestRoute } from "./routes/ingest";
 import { sendRoute } from "./routes/send";
+import { platformBroadcastRoute } from "./routes/platformBroadcast";
 import { healthRoute } from "./routes/health";
 import { tokensRoute } from "./routes/tokens";
 import { corsMiddleware } from "./middleware/cors";
@@ -748,6 +773,7 @@ app.use("*", corsMiddleware);
 app.route("/webhook", webhookRoute);
 app.route("/api/miniapps-notifications", ingestRoute);
 app.route("/send", sendRoute);
+app.route("/platform-broadcast", platformBroadcastRoute);
 app.route("/health", healthRoute);
 app.route("/tokens", tokensRoute);
 
@@ -759,13 +785,216 @@ export const notifications = onRequest(
 
 ---
 
-## Verification / Testing Plan
+## Platform Broadcast: Notify All Users
 
-1. **Local development**: `firebase emulators:start --only functions,firestore` — test all endpoints against local emulator
-2. **Webhook test**: POST a `miniapp_added` event to `/webhook` with valid API key and verify token appears in Firestore
-3. **Ingest test**: POST to `/api/miniapps-notifications` with a valid token and verify `successfulTokens` response
-4. **Rate limit test**: Send 2 notifications within 30 seconds to the same token — second should return in `rateLimitedTokens`
-5. **Dedup test**: Send same `notificationId` + `userAddress` twice — second should be deduplicated
-6. **Token lifecycle**: Send `miniapp_added` -> verify active -> send `notifications_disabled` -> verify disabled -> send `notifications_enabled` -> verify new active token, old one removed
-7. **Multi-env**: Deploy to dev, verify function URL works. Repeat for staging.
-8. **Security test**: POST to `/webhook` without API key — verify it is rejected with `401`
+StartaleApp admin may need to notify **all platform users** regardless of which mini app they use — e.g. announcing a new mini app, a platform update, or a maintenance window.
+
+### Users Collection
+
+A `users` collection is built as a side effect of `miniapp_added` webhook processing. When the notification server handles a `miniapp_added` event, it also upserts a doc in the `users` collection keyed by `userAddress`. This gives the platform a deduplicated registry of all users who have ever added any mini app.
+
+#### Collection: `users`
+
+Document ID: `{userAddress}`
+
+```ts
+{
+  userAddress: string;           // user's smart account address
+  firstSeenAt: Timestamp;        // when this user first added any mini app
+  lastActiveAt: Timestamp;       // updated on each miniapp_added event
+}
+```
+
+**Upsert logic in `/webhook` handler for `miniapp_added`:**
+- If doc exists: update `lastActiveAt`
+- If doc does not exist: create with `firstSeenAt = now`, `lastActiveAt = now`
+
+This adds one extra Firestore write per `miniapp_added` event — negligible overhead.
+
+### `POST /platform-broadcast`
+
+**Called by:** StartaleApp backend / admin tools only
+
+**Auth:** API key (`x-api-key` header) — same key as `/webhook`, `/send`, and `/tokens`.
+
+> **Security: admin-only endpoint.** This endpoint sends notifications to every user on the platform. It **must not** be publicly accessible. Unlike `/api/miniapps-notifications` (which any mini app backend can call with a valid token), `/platform-broadcast` is gated by the API key and should only be called by StartaleApp's own backend or admin tooling. The API key must never be exposed to mini app developers or frontend code.
+
+**Input:**
+```json
+{
+  "title": "New mini app: GameX",
+  "body": "Try out GameX — now available on StartaleApp!",
+  "targetUrl": "https://startale.app/miniapps/gamex",
+  "notificationId": "platform-announce-gamex-2024-03-15"
+}
+```
+
+A stable `notificationId` is required (not auto-generated) to ensure safe retries and deduplication.
+
+**Processing:**
+1. Validate API key
+2. Query all docs from the `users` collection (paginated, 500 per page via Firestore cursor)
+3. For each user, query **one** active token (most recent `createdAt`) from the `tokens` collection — any mini app's token works since the notification opens a platform URL, not a mini app URL
+4. Batch the collected tokens into groups of 100
+5. POST each batch to the corresponding `notificationUrl` (loops through `/api/miniapps-notifications` internally)
+6. Track results, mark `invalidTokens` as `removed`
+7. Return summary
+
+**Response:**
+```json
+{
+  "success": true,
+  "totalUsers": 1200,
+  "totalSent": 1194,
+  "totalFailed": 6
+}
+```
+
+Users who have removed all their mini apps (no active tokens) are silently skipped — they remain in the `users` collection but receive no notification.
+
+### Scalability
+
+The synchronous paginated approach handles thousands of users within Cloud Functions' 540s timeout. If the platform grows beyond that, introduce Cloud Tasks fan-out (enqueue one task per page of users, return a `broadcastId` immediately, add a `GET /broadcasts/{broadcastId}` status endpoint). This is a future enhancement.
+
+### Updates to Project Structure
+
+Add the new route and collection:
+
+- `functions/src/routes/platformBroadcast.ts` — the `/platform-broadcast` handler
+- Register in `index.ts`: `app.route("/platform-broadcast", platformBroadcastRoute)`
+
+### Updates to Firestore Indexes
+
+Add to `firestore.indexes.json`:
+
+```json
+{
+  "collectionGroup": "tokens",
+  "queryScope": "COLLECTION",
+  "fields": [
+    { "fieldPath": "userAddress", "order": "ASCENDING" },
+    { "fieldPath": "status", "order": "ASCENDING" },
+    { "fieldPath": "createdAt", "order": "DESCENDING" }
+  ]
+}
+```
+
+This supports the "pick one active token per user, most recent first" query.
+
+---
+
+## Testing
+
+### Stack
+
+- **Test runner:** Vitest
+- **Firestore:** `@firebase/rules-unit-testing` with the Firestore emulator — tests run against a real (local) Firestore instance, not mocks
+- **HTTP:** Use Hono's `app.request()` to call endpoints directly (no need for a running server)
+- **Emulator:** `firebase emulators:start --only firestore` must be running before tests. Configure via `firebase.json` emulator settings.
+
+### Project Structure
+
+```
+functions/
+├── src/
+│   └── ...
+├── test/
+│   ├── setup.ts              # emulator connection, Firestore cleanup between tests
+│   ├── webhook.test.ts        # /webhook endpoint tests
+│   ├── ingest.test.ts         # /api/miniapps-notifications endpoint tests
+│   ├── send.test.ts           # /send endpoint tests
+│   ├── platformBroadcast.test.ts  # /platform-broadcast endpoint tests
+│   ├── rateLimiter.test.ts    # rate limiting service tests
+│   └── deduplication.test.ts  # dedup service tests
+├── vitest.config.ts
+└── package.json
+```
+
+### Test Setup (`test/setup.ts`)
+
+Each test file should:
+1. Connect to the Firestore emulator (`localhost:8080` by default)
+2. Clear all Firestore data between tests using `clearFirestoreData()` from `@firebase/rules-unit-testing`
+3. Provide a helper to build the Hono app with a test API key injected
+
+### What to Test
+
+#### `/webhook` — `webhook.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| `miniapp_added` creates token doc | Token stored with `status: active`, correct `userAddress`, `miniappOrigin`, `notificationUrl` |
+| `miniapp_added` upserts user doc | `users/{userAddress}` created with `firstSeenAt` and `lastActiveAt` |
+| `miniapp_added` twice for same user | `lastActiveAt` updated, no duplicate user doc, previous token deactivated |
+| `miniapp_added` for new miniapp same user | Both tokens active (different `miniappOrigin`), single user doc |
+| `notifications_disabled` sets status | Token status changes to `disabled` |
+| `notifications_enabled` creates fresh token | Old token deactivated, new token active with new value |
+| `miniapp_removed` sets status | Token status changes to `removed` |
+| Missing API key returns 401 | Auth rejection |
+| Invalid API key returns 401 | Auth rejection |
+| Malformed body returns 400 | Validation error |
+
+#### `/api/miniapps-notifications` — `ingest.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| Valid token delivers notification | Token in `successfulTokens` response |
+| Invalid token (not in DB) | Token in `invalidTokens` |
+| Disabled token | Token in `invalidTokens` |
+| Removed token | Token in `invalidTokens` |
+| Batch of mixed tokens | Correct categorization across `successfulTokens`, `invalidTokens`, `rateLimitedTokens` |
+| Max 100 tokens enforced | Request with 101 tokens returns 400 |
+| Missing required fields | Returns 400 for missing `title`, `body`, `tokens`, etc. |
+| `notificationId` max length (128) | Returns 400 if exceeded |
+| `title` max length (32) | Returns 400 if exceeded |
+
+#### Rate Limiting — `rateLimiter.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| First notification passes | No rate limit hit |
+| Second notification within 30s | Token in `rateLimitedTokens` |
+| Notification after 30s passes | Rate limit resets |
+| 100th notification in a day passes | At daily limit |
+| 101st notification in same day | Token in `rateLimitedTokens` |
+| Daily counter resets after midnight UTC | Counter reset, notification passes |
+
+#### Deduplication — `deduplication.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| First send with `notificationId` passes | Dedup doc created |
+| Same `(userAddress, notificationId)` within 24h | Silently skipped |
+| Different `notificationId` same user | Both pass |
+| Same `notificationId` different user | Both pass |
+
+#### `/send` — `send.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| Send to specific `userAddresses` | Only those users' tokens queried |
+| Filter by `miniappOrigin` | Only tokens for that miniapp |
+| `invalidTokens` marked as `removed` | Firestore status updated after send |
+| Missing API key returns 401 | Auth rejection |
+
+#### `/platform-broadcast` — `platformBroadcast.test.ts`
+
+| Test | What it verifies |
+|---|---|
+| Broadcasts to all users | Each user in `users` collection receives one notification |
+| User with multiple miniapps gets one notification | Dedup by `userAddress` — picks one token |
+| User with no active tokens is skipped | No error, `totalSent` excludes them |
+| Stable `notificationId` deduplicates on retry | Second call skips already-delivered users |
+| Missing API key returns 401 | Auth rejection |
+| Invalid API key returns 401 | Auth rejection — endpoint is admin-only |
+| Request without `x-api-key` header from external origin | Rejected, not publicly accessible |
+
+### Manual / Integration Verification
+
+After unit tests pass, verify end-to-end against the emulator:
+
+1. `firebase emulators:start --only functions,firestore` — run functions + Firestore locally
+2. POST `miniapp_added` to `/webhook` → inspect Firestore for token + user docs
+3. POST to `/api/miniapps-notifications` with the token → verify response
+4. POST to `/platform-broadcast` → verify fan-out
+5. Deploy to dev environment and repeat with real Firebase
