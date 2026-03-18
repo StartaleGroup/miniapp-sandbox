@@ -27,6 +27,15 @@ export const MINI_APPS: MiniAppConfig[] = [
 		category: 'NFT',
 		tags: ['minting', 'backend', 'demo'],
 	},
+	{
+		id: 'nekocat-play',
+		name: 'NekoCat Play',
+		description: 'Collect, feed, and battle NekoCat NFTs. Mint, level up, and make them immortal.',
+		url: 'https://play.nekocat.world',
+		imageUrl: 'https://play.nekocat.world/nekocat-logo-transparent.webp',
+		category: 'Gaming',
+		tags: ['nft', 'gaming', 'collectibles', 'onchain'],
+	},
 	// Add your Mini App here:
 	// {
 	// 	id: 'your-app-id',
