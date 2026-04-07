@@ -12,6 +12,7 @@ import { createPublicClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
+import { NOTIFICATION_INGEST_URL, NOTIFICATIONS_API_KEY, WEBHOOK_URL } from '~/lib/notifications-config'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
 
@@ -39,8 +40,6 @@ function safeParseUrl(raw: string): URL | null {
 // Host Configuration Helpers (pure functions, defined outside component)
 // ============================================================================
 
-const NOTIFICATION_SERVER_URL = 'http://localhost:3200/api/miniapps-notifications'
-const NOTIFY_WEBHOOK_URL = 'http://localhost:3200/webhook'
 
 /** Create EIP-6963 provider metadata. */
 function createProviderInfo() {
@@ -53,7 +52,7 @@ function createProviderInfo() {
 }
 
 /** Create the initial Farcaster host context sent to the miniapp. */
-function createHostContext(address: string | undefined) {
+function createHostContext(address?: string) {
 	const seed = address ?? 'george'
 	return {
 		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: `https://robohash.org/${seed}?size=200x200` },
@@ -313,14 +312,22 @@ export function FarcasterMiniappHost({
 		const addMiniAppImpl = async () => {
 			try {
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
-				const details = { url: NOTIFICATION_SERVER_URL, token: crypto.randomUUID() }
-				const webhookPayload = { event: 'miniapp_added', notificationDetails: details, miniappOrigin: targetOrigin }
+				const details = { url: NOTIFICATION_INGEST_URL, token: crypto.randomUUID() }
+				const webhookPayload = {
+					event: 'miniapp_added',
+					userAddress: address ?? '0x0000000000000000000000000000000000000000',
+					notificationDetails: details,
+					miniappOrigin: targetOrigin,
+				}
 
 				postFrameEvent({ event: 'miniapp_added', notificationDetails: details })
 
-				fetch(NOTIFY_WEBHOOK_URL, {
+				fetch(WEBHOOK_URL, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {
+						'Content-Type': 'application/json',
+						'x-api-key': NOTIFICATIONS_API_KEY,
+					},
 					body: JSON.stringify(webhookPayload),
 				}).catch((err) => console.error('[HOST] webhook error:', err))
 
@@ -368,7 +375,7 @@ export function FarcasterMiniappHost({
 				postFrameEvent({ event: 'eip6963:announceProvider', info: providerInfo })
 			},
 		}
-	}, [onClose])
+	}, [address, onClose])
 
 	// ============================================================================
 	// Iframe Communication Setup

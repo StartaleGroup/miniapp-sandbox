@@ -7,6 +7,7 @@ import {
 	useState,
 	type ReactNode,
 } from 'react'
+import { SENT_NOTIFICATIONS_URL } from '~/lib/notifications-config'
 
 export interface Notification {
 	notificationId: string
@@ -31,7 +32,7 @@ const NotificationContext = createContext<NotificationContextValue>({
 
 export const useNotifications = () => useContext(NotificationContext)
 
-const NOTIFY_EVENTS_URL = 'http://localhost:3200/events'
+const POLL_INTERVAL_MS = 3000
 
 // Cache for manifest iconUrl (null means "looked up, not found")
 const manifestCache = new Map<string, string | null>()
@@ -66,37 +67,56 @@ async function enrichNotificationWithIcon(notification: Notification): Promise<N
 	return notification
 }
 
-/** Provides real-time notification state via SSE from the notify server. */
+/** Provides notification state by polling the Firebase sent notifications endpoint. */
 export function NotificationProvider({ children }: { children: ReactNode }) {
 	const [notifications, setNotifications] = useState<Notification[]>([])
 	const [unreadCount, setUnreadCount] = useState(0)
-	const eventSourceRef = useRef<EventSource | null>(null)
+	const seenIdsRef = useRef(new Set<string>())
+	const lastPollTimeRef = useRef(new Date().toISOString())
 
 	useEffect(() => {
-		const es = new EventSource(NOTIFY_EVENTS_URL)
-		eventSourceRef.current = es
-
-		es.addEventListener('notification', (e) => {
+		const poll = async () => {
 			try {
-				const data = JSON.parse(e.data) as Notification
-				// Enrich notification with iconUrl from manifest
-				enrichNotificationWithIcon(data).then((enrichedData) => {
-					setNotifications((prev) => [enrichedData, ...prev])
+				const res = await fetch(
+					`${SENT_NOTIFICATIONS_URL}?since=${encodeURIComponent(lastPollTimeRef.current)}`,
+				)
+				if (!res.ok) return
+
+				const data = (await res.json()) as {
+					notifications: {
+						notificationId: string
+						title: string
+						body: string
+						targetUrl: string
+						createdAt: string
+					}[]
+				}
+
+				if (data.notifications.length === 0) return
+
+				for (const n of data.notifications) {
+					if (seenIdsRef.current.has(n.notificationId)) continue
+					seenIdsRef.current.add(n.notificationId)
+
+					const enriched = await enrichNotificationWithIcon({
+						notificationId: n.notificationId,
+						title: n.title,
+						body: n.body,
+						targetUrl: n.targetUrl,
+						timestamp: n.createdAt,
+					})
+					setNotifications((prev) => [enriched, ...prev])
 					setUnreadCount((prev) => prev + 1)
-				})
+				}
+
+				lastPollTimeRef.current = new Date().toISOString()
 			} catch {
-				// Ignore malformed events
+				// Poll failed — will retry next interval
 			}
-		})
-
-		es.onerror = () => {
-			// EventSource auto-reconnects; nothing to do
 		}
 
-		return () => {
-			es.close()
-			eventSourceRef.current = null
-		}
+		const intervalId = setInterval(poll, POLL_INTERVAL_MS)
+		return () => clearInterval(intervalId)
 	}, [])
 
 	const markAllRead = useCallback(() => {
