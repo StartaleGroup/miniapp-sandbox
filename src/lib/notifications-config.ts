@@ -6,6 +6,6 @@ export const NOTIFICATIONS_BASE_URL: string =
 export const NOTIFICATIONS_API_KEY: string =
 	import.meta.env.VITE_NOTIFICATIONS_API_KEY || "test-sandbox-key";
 
-export const NOTIFICATION_INGEST_URL = `${NOTIFICATIONS_BASE_URL}/v1/notifications`;
+export const NOTIFICATION_SEND_URL = `${NOTIFICATIONS_BASE_URL}/v1/notifications`;
 export const WEBHOOK_URL = `${NOTIFICATIONS_BASE_URL}/webhook`;
-export const SENT_NOTIFICATIONS_URL = `${NOTIFICATIONS_BASE_URL}/v1/notifications/sent`;
+export const NOTIFICATIONS_POLL_URL = `${NOTIFICATIONS_BASE_URL}/v1/notifications/poll`;

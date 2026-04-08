@@ -7,7 +7,7 @@ import {
 	useState,
 	type ReactNode,
 } from 'react'
-import { SENT_NOTIFICATIONS_URL } from '~/lib/notifications-config'
+import { NOTIFICATIONS_API_KEY, NOTIFICATIONS_POLL_URL } from '~/lib/notifications-config'
 
 export interface Notification {
 	notificationId: string
@@ -77,9 +77,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		const poll = async () => {
 			try {
-				const res = await fetch(
-					`${SENT_NOTIFICATIONS_URL}?since=${encodeURIComponent(lastPollTimeRef.current)}`,
-				)
+				const url = `${NOTIFICATIONS_POLL_URL}?since=${encodeURIComponent(lastPollTimeRef.current)}`
+				console.log('[notifications] polling sent, url:', url, 'key:', NOTIFICATIONS_API_KEY.slice(0, 6) + '…')
+				const res = await fetch(url, {
+					headers: { 'x-api-key': NOTIFICATIONS_API_KEY },
+				})
 				if (!res.ok) return
 
 				const data = (await res.json()) as {

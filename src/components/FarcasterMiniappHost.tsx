@@ -12,7 +12,7 @@ import { createPublicClient, http } from 'viem'
 import { soneium } from 'viem/chains'
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi'
 import { createSecureIframeEndpoint } from '~/lib/miniapps/farcaster-comlink'
-import { NOTIFICATION_INGEST_URL, NOTIFICATIONS_API_KEY, WEBHOOK_URL } from '~/lib/notifications-config'
+import { NOTIFICATION_SEND_URL, NOTIFICATIONS_API_KEY, WEBHOOK_URL } from '~/lib/notifications-config'
 import { MINIAPP_ALLOWED_ORIGINS } from '~/pages/configMiniApps'
 
 
@@ -88,10 +88,10 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 	}
 }
 
-/** Fetch the webhookUrl from a miniapp's farcaster.json manifest. */
+/** Fetch the webhookUrl from a miniapp's farcaster.json manifest (via API proxy to avoid CORS). */
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
-		const manifest = await fetch(`${targetOrigin}/.well-known/farcaster.json`).then(r => r.json())
+		const manifest = await fetch(`/api/miniapp-manifest?origin=${encodeURIComponent(targetOrigin)}`).then(r => r.json())
 		const miniappConfig = manifest as { miniapp?: { webhookUrl?: string } }
 		return miniappConfig?.miniapp?.webhookUrl
 	} catch { /* manifest fetch failed */ }
@@ -312,7 +312,7 @@ export function FarcasterMiniappHost({
 		const addMiniAppImpl = async () => {
 			try {
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
-				const details = { url: NOTIFICATION_INGEST_URL, token: crypto.randomUUID() }
+				const details = { url: NOTIFICATION_SEND_URL, token: crypto.randomUUID() }
 				const webhookPayload = {
 					event: 'miniapp_added',
 					userAddress: address ?? '0x0000000000000000000000000000000000000000',
