@@ -15,6 +15,7 @@ Build and test Farcaster Mini Apps that integrate with **Startale App** for wall
 - ⛓️ Soneium Network Support
 - 🔗 Wagmi Integration
 - 📱 Mini Apps Gallery
+- 🔔 Firebase-hosted Notification Server
 
 ---
 
@@ -23,36 +24,12 @@ Build and test Farcaster Mini Apps that integrate with **Startale App** for wall
 ### Start All Services
 
 ```bash
-./start.sh
+pnpm dev
 ```
 
 This starts:
 - **Sandbox** at `http://localhost:3100` — host/client UI
-- **Notify** at `http://localhost:3200` — notification service
 
-To stop:
-```bash
-./stop.sh
-```
-
-### Manual Development
-
-**Sandbox only:**
-```bash
-pnpm install
-pnpm dev
-```
-
-**With notifications** (separate terminals):
-```bash
-# Terminal 1
-pnpm dev
-
-# Terminal 2
-cd notify
-pnpm install
-pnpm dev
-```
 
 ---
 
@@ -88,6 +65,17 @@ The sandbox demonstrates authentication using Startale SDK:
 - Enable notifications in your Mini App
 - Send notifications from client or backend
 - Rate limits and best practices
+
+### Notification Server
+
+The production notification relay runs on **Firebase Cloud Functions** (hosted by StartaleApp). Configure it via `.env.local`:
+
+```env
+VITE_NOTIFICATIONS_URL=<firebase-functions-url>
+VITE_NOTIFICATIONS_API_KEY=<your-api-key>
+```
+
+See `.env.local.example` for the required variables.
 
 ---
 
