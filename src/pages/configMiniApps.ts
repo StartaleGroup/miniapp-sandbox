@@ -10,20 +10,11 @@ export interface MiniAppConfig {
 
 export const MINI_APPS: MiniAppConfig[] = [
 	{
-		id: 'inking',
-		name: 'Inking',
-		description: 'Client side demo of minting and notifications (no backend)',
-		url: 'https://inking-farcaster-miniapp.vercel.app/',
-		imageUrl: 'https://inking-farcaster-miniapp.vercel.app/preview.svg',
-		category: 'NFT',
-		tags: ['minting', 'collectibles', 'demo'],
-	},
-	{
-		id: 'mustard',
-		name: 'Mustard',
-		description: 'Demo minting with backend notifications',
-		url: 'http://localhost:5174/',
-		imageUrl: 'http://localhost:5174/preview.svg',
+		id: 'demo-mini-app',
+		name: 'Demo Mini App',
+		description: '',
+		url: 'http://localhost:3000/',
+		imageUrl: 'http://localhost:3000/preview.png',
 		category: 'NFT',
 		tags: ['minting', 'backend', 'demo'],
 	},

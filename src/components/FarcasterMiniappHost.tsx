@@ -51,16 +51,44 @@ function createProviderInfo() {
 	} as const
 }
 
+/** Check if a miniapp is in the added list for this address. */
+function isMiniAppAdded(address: string | undefined, miniappOrigin: string): boolean {
+	if (!address) return false
+	try {
+		const storageKey = `miniapps-added:${address}`
+		const addedApps = JSON.parse(localStorage.getItem(storageKey) || '[]') as string[]
+		return addedApps.includes(miniappOrigin)
+	} catch {
+		return false
+	}
+}
+
+/** Add a miniapp to the list for this address. */
+function addMiniAppToStorage(address: string | undefined, miniappOrigin: string) {
+	if (!address) return
+	try {
+		const storageKey = `miniapps-added:${address}`
+		const addedApps = JSON.parse(localStorage.getItem(storageKey) || '[]') as string[]
+		if (!addedApps.includes(miniappOrigin)) {
+			addedApps.push(miniappOrigin)
+			localStorage.setItem(storageKey, JSON.stringify(addedApps))
+		}
+	} catch {
+		console.error('[HOST] Failed to save miniapp added state')
+	}
+}
+
 /** Create the initial Farcaster host context sent to the miniapp. */
-function createHostContext(address?: string) {
+function createHostContext(address?: string, miniappOrigin?: string) {
 	const seed = address ?? 'george'
+	const added = isMiniAppAdded(address, miniappOrigin || '')
 	return {
 		user: { fid: 3, username: "George", displayName: undefined, pfpUrl: `https://robohash.org/${seed}?size=200x200` },
 		location: { type: 'launcher' as const },
 		client: {
 			platformType: 'web' as const,
 			clientFid: 1,
-			added: false,
+			added,
 			safeAreaInsets: { top: 0, bottom: 0, left: 0, right: 0 },
 		},
 		features: {
@@ -92,9 +120,15 @@ function createMessagePoster(iframeWindow: Window, targetOrigin: string) {
 async function getManifestWebhookUrl(targetOrigin: string) {
 	try {
 		const manifest = await fetch(`/api/miniapp-manifest?origin=${encodeURIComponent(targetOrigin)}`).then(r => r.json())
-		const miniappConfig = manifest as { miniapp?: { webhookUrl?: string } }
-		return miniappConfig?.miniapp?.webhookUrl
-	} catch { /* manifest fetch failed */ }
+		console.log('[HOST] getManifestWebhookUrl - manifest:', manifest)
+		// Try both "frame" and "miniapp" keys for compatibility
+		const config = manifest as { frame?: { webhookUrl?: string }; miniapp?: { webhookUrl?: string } }
+		const webhookUrl = config?.frame?.webhookUrl || config?.miniapp?.webhookUrl
+		console.log('[HOST] getManifestWebhookUrl - found:', webhookUrl)
+		return webhookUrl
+	} catch (e) {
+		console.error('[HOST] getManifestWebhookUrl error:', e)
+	}
 	return undefined
 }
 
@@ -103,13 +137,17 @@ function buildHostObject({
 	chain,
 	hostActions,
 	handleEip1193Request,
+	address,
+	miniappOrigin,
 }: {
 	chain: typeof soneium
 	hostActions: Record<string, unknown>
 	handleEip1193Request: (method: string, params: unknown[] | undefined) => Promise<unknown>
+	address?: string
+	miniappOrigin?: string
 }): Record<string, unknown> {
 	return {
-		context: createHostContext(),
+		context: createHostContext(address, miniappOrigin),
 
 		getCapabilities: () =>
 			Promise.resolve([
@@ -311,7 +349,12 @@ export function FarcasterMiniappHost({
 	) => {
 		const addMiniAppImpl = async () => {
 			try {
+				// Persist that this miniapp is added for this user
+				addMiniAppToStorage(address, targetOrigin)
+
 				const webhookUrl = await getManifestWebhookUrl(targetOrigin)
+				console.log('[HOST] addMiniApp - targetOrigin:', targetOrigin, 'webhookUrl:', webhookUrl)
+
 				const details = { url: NOTIFICATION_SEND_URL, token: crypto.randomUUID() }
 				const webhookPayload = {
 					event: 'miniapp_added',
@@ -332,11 +375,16 @@ export function FarcasterMiniappHost({
 				}).catch((err) => console.error('[HOST] webhook error:', err))
 
 				if (webhookUrl) {
+					console.log('[HOST] Sending miniapp webhook to:', webhookUrl)
 					fetch(webhookUrl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify(webhookPayload),
+					}).then(r => {
+						console.log('[HOST] Miniapp webhook response:', r.status)
 					}).catch((err) => console.error('[HOST] Miniapp webhook error:', err))
+				} else {
+					console.log('[HOST] No webhookUrl found in manifest')
 				}
 
 				return { result: { notificationDetails: details } }
@@ -404,7 +452,7 @@ export function FarcasterMiniappHost({
 			const providerInfo = createProviderInfo()
 			const { postFrameEvent, postEthProviderEvent } = createMessagePoster(iframeWindow, targetOrigin)
 			const hostActions = createHostActions(targetOrigin, postFrameEvent, providerInfo)
-			const host = buildHostObject({ chain, hostActions, handleEip1193Request })
+			const host = buildHostObject({ chain, hostActions, handleEip1193Request, address, miniappOrigin: targetOrigin })
 
 			expose(host, endpoint)
 
