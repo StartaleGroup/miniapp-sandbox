@@ -2,54 +2,66 @@ import { useEffect, useState } from 'react'
 import { FarcasterMiniappHost } from '~/components/FarcasterMiniappHost'
 import { MINI_APPS, type MiniAppConfig } from './configMiniApps'
 
-interface FarcasterManifestMiniapp {
+interface FarcasterManifestFrame {
+	name?: string
 	description?: string
+	imageUrl?: string
 	primaryCategory?: string
 	tags?: string[]
 }
 
-interface AppMeta {
+interface ResolvedApp {
+	url: string
+	name: string
 	description: string | null
+	imageUrl: string | null
 	category: string | null
 	tags: string[]
 }
 
 /** Fetch miniapp metadata from the farcaster.json manifest. */
-async function fetchAppMeta(app: MiniAppConfig): Promise<AppMeta> {
+async function resolveApp(app: MiniAppConfig): Promise<ResolvedApp> {
+	const fallback: ResolvedApp = {
+		url: app.url,
+		name: new URL(app.url).hostname,
+		description: null,
+		imageUrl: null,
+		category: null,
+		tags: [],
+	}
 	try {
 		const origin = new URL(app.url).origin
 		const res = await fetch(
 			`/api/miniapp-manifest?origin=${encodeURIComponent(origin)}`,
 		)
-		if (!res.ok) return { description: null, category: null, tags: [] }
-		const data = (await res.json()) as { miniapp?: FarcasterManifestMiniapp }
-		const miniapp = data.miniapp
+		if (!res.ok) return fallback
+		const data = (await res.json()) as { frame?: FarcasterManifestFrame; miniapp?: FarcasterManifestFrame }
+		const frame = data.frame ?? data.miniapp
+		if (!frame) return fallback
 		return {
-			description: miniapp?.description ?? null,
-			category: miniapp?.primaryCategory ?? null,
-			tags: Array.isArray(miniapp?.tags) ? miniapp.tags : [],
+			url: app.url,
+			name: frame.name ?? fallback.name,
+			description: frame.description ?? null,
+			imageUrl: frame.imageUrl ?? null,
+			category: frame.primaryCategory ?? null,
+			tags: Array.isArray(frame.tags) ? frame.tags : [],
 		}
 	} catch {
-		return { description: null, category: null, tags: [] }
+		return fallback
 	}
 }
 
 /** Displays available miniapps and hosts the selected one in an iframe. */
 export const MiniAppsPage = () => {
-	const [metaByAppId, setMetaByAppId] = useState<Record<string, AppMeta>>({})
-	const [activeMiniApp, setActiveMiniApp] = useState<MiniAppConfig | null>(null)
+	const [resolvedApps, setResolvedApps] = useState<ResolvedApp[]>([])
+	const [activeApp, setActiveApp] = useState<ResolvedApp | null>(null)
 
 	useEffect(() => {
 		let cancelled = false
 		const run = async () => {
-			const entries = await Promise.all(
-				MINI_APPS.map(async (app) => {
-					const meta = await fetchAppMeta(app)
-					return [app.id, meta] as const
-				})
-			)
+			const apps = await Promise.all(MINI_APPS.map(resolveApp))
 			if (cancelled) return
-			setMetaByAppId(Object.fromEntries(entries))
+			setResolvedApps(apps)
 		}
 		run()
 		return () => {
@@ -59,32 +71,18 @@ export const MiniAppsPage = () => {
 
 	return (
 		<>
-			{!activeMiniApp ? (
+			{!activeApp ? (
 				<div className="flex w-full flex-col gap-8 px-4 py-6">
-					<h1 className="font-semibold text-2xl text-zinc-950 leading-8">
-						Mini Apps
-					</h1>
 
 					<div className="space-y-4">
-						<p className="text-zinc-600">
-							Discover and interact with mini apps
-						</p>
 
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start">
-						{MINI_APPS.map((app) => {
-							const meta = metaByAppId[app.id] ?? {
-								description: null,
-								category: null,
-								tags: [],
-							}
-							const description = meta.description ?? app.description
-							const category = meta.category ?? app.category
-							const tags = meta.tags.length > 0 ? meta.tags : (app.tags ?? [])
-							const hasCategoryOrTags = !!category || tags.length > 0
+						{resolvedApps.map((app) => {
+							const hasCategoryOrTags = !!app.category || app.tags.length > 0
 							return (
 								<button
-									key={app.id}
-									onClick={() => setActiveMiniApp(app)}
+									key={app.url}
+									onClick={() => setActiveApp(app)}
 									className="flex flex-col rounded-lg border border-zinc-200 p-4 text-left transition-all hover:border-violet-500 hover:shadow-md"
 									type="button"
 								>
@@ -98,15 +96,17 @@ export const MiniAppsPage = () => {
 										</div>
 									)}
 									<h3 className="mb-2 font-medium text-lg">{app.name}</h3>
-									<p className="mb-2 text-sm text-zinc-600">{description}</p>
+									{app.description && (
+										<p className="mb-2 text-sm text-zinc-600">{app.description}</p>
+									)}
 									{hasCategoryOrTags && (
 										<div className="mb-2 flex flex-wrap items-center gap-2 text-zinc-500">
-											{category && (
+											{app.category && (
 												<span className="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-800">
-													{category}
+													{app.category}
 												</span>
 											)}
-											{tags.map((tag) => (
+											{app.tags.map((tag) => (
 												<span
 													key={tag}
 													className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
@@ -127,10 +127,10 @@ export const MiniAppsPage = () => {
 				</div>
 			) : (
 				<FarcasterMiniappHost
-					key={activeMiniApp.url}
-					src={activeMiniApp.url}
-					title={activeMiniApp.name}
-					onClose={() => setActiveMiniApp(null)}
+					key={activeApp.url}
+					src={activeApp.url}
+					title={activeApp.name}
+					onClose={() => setActiveApp(null)}
 				/>
 			)}
 		</>

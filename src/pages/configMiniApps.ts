@@ -1,34 +1,12 @@
 export interface MiniAppConfig {
-	id: string
-	name: string
-	description: string
 	url: string
-	imageUrl: string
-	category?: string
-	tags?: string[]
 }
 
 export const MINI_APPS: MiniAppConfig[] = [
-	{
-		id: 'demo-mini-app',
-		name: 'Demo Mini App',
-		description: 'Demo notification',
-		url: 'https://leafy-biscotti-4e9fc8.netlify.app/',
-		imageUrl: 'https://leafy-biscotti-4e9fc8.netlify.app/preview.png',
-		category: 'NFT',
-		tags: ['minting', 'collectibles', 'demo'],
-	},
-	
+	{ url: 'https://leafy-biscotti-4e9fc8.netlify.app/' },
+
 	// Add your Mini App here:
-	// {
-	// 	id: 'your-app-id',
-	// 	name: 'Your App Name',
-	// 	description: 'Description of your app',
-	// 	url: 'https://your-miniapp.example.com/',
-	// 	imageUrl: 'https://your-miniapp.example.com/preview.png',
-	// 	category: 'DeFi', // Optional: e.g., 'DeFi', 'NFT', 'Gaming', 'Social'
-	// 	tags: ['tag1', 'tag2'], // Optional: e.g., ['swap', 'trading']
-	// },
+	// { url: 'https://your-miniapp.example.com/' },
 ]
 
 /** Origins allowed for manifest fetch (API proxy). Derived from MINI_APPS urls. */
