@@ -19,6 +19,15 @@ export const MINI_APPS: MiniAppConfig[] = [
 		tags: ['minting', 'collectibles', 'demo'],
 	},
 	{
+		id: 'coolcats',
+		name: 'Cool Cats',
+		description: 'Cool Cats - Cooltopia!',
+		url: 'https://startale.coolcats.com/',
+		imageUrl: 'https://startale.coolcats.com/og.png',
+		category: 'Gaming',
+		tags: ['collectibles'],
+	},
+	{
 		id: 'mustard',
 		name: 'Mustard',
 		description: 'Demo minting with backend notifications',
