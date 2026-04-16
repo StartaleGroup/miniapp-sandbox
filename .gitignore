@@ -19,3 +19,4 @@ notify/package-lock.json
 
 # Local Claude settings (machine-specific paths)
 .claude/settings.local.json
+.vite
