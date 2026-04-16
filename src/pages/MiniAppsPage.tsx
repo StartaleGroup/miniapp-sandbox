@@ -60,7 +60,7 @@ export const MiniAppsPage = () => {
 	return (
 		<>
 			{!activeMiniApp ? (
-				<div className="flex w-full flex-col gap-8 px-4 py-6 md:max-w-[572px]">
+				<div className="flex w-full flex-col gap-8 px-4 py-6">
 					<h1 className="font-semibold text-2xl text-zinc-950 leading-8">
 						Mini Apps
 					</h1>
@@ -70,7 +70,7 @@ export const MiniAppsPage = () => {
 							Discover and interact with mini apps
 						</p>
 
-						<div className="grid gap-4 md:grid-cols-2 items-start">
+						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-start">
 						{MINI_APPS.map((app) => {
 							const meta = metaByAppId[app.id] ?? {
 								description: null,
