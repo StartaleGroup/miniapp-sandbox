@@ -4,7 +4,7 @@ export interface MiniAppConfig {
 
 export const MINI_APPS: MiniAppConfig[] = [
 	{ url: 'https://leafy-biscotti-4e9fc8.netlify.app/' },
-
+	{ url: 'https://soneium.miniapp.humantap.humanlabs.world/' },
 	// Add your Mini App here:
 	// { url: 'https://your-miniapp.example.com/' },
 ]
